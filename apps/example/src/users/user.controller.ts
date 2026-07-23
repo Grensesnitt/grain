@@ -16,6 +16,7 @@ import { UserService } from './user.service';
 const CreateUser = t.Object({
   name: t.String({ minLength: 1 }),
   email: t.String({ format: 'email' }),
+  password: t.String({ minLength: 8 }),
 });
 
 const IdParams = t.Object({ id: t.Number() });

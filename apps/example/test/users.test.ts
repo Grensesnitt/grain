@@ -28,13 +28,18 @@ test('full CRUD flow', async () => {
   const created = await app.handle(
     jsonPost(
       '/users',
-      { name: 'Runar', email: 'runar@grensesnitt.no' },
+      {
+        name: 'Runar',
+        email: 'runar@grensesnitt.no',
+        password: 'hunter2secure',
+      },
       'test-token'
     )
   );
   expect(created.status).toBe(201);
   const user = (await created.json()) as { id: number; name: string };
   expect(user.name).toBe('Runar');
+  expect(Object.keys(user).sort()).toEqual(['email', 'id', 'name']);
 
   const list = await app.handle(new Request('http://localhost/users'));
   expect(((await list.json()) as unknown[]).length).toBe(1);
@@ -73,13 +78,21 @@ test('validation failures are 400 with details', async () => {
   );
 });
 
-test('mutating routes require a bearer token', async () => {
+test('mutating routes require an API token', async () => {
   const noToken = await app.handle(
-    jsonPost('/users', { name: 'X', email: 'x@x.no' })
+    jsonPost('/users', {
+      name: 'X',
+      email: 'x@x.no',
+      password: 'hunter2secure',
+    })
   );
   expect(noToken.status).toBe(401);
   const wrongToken = await app.handle(
-    jsonPost('/users', { name: 'X', email: 'x@x.no' }, 'wrong')
+    jsonPost(
+      '/users',
+      { name: 'X', email: 'x@x.no', password: 'hunter2secure' },
+      'wrong'
+    )
   );
   expect(wrongToken.status).toBe(401);
 });

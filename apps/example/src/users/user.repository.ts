@@ -4,6 +4,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  passwordHash: string;
 }
 
 @Injectable()
@@ -17,6 +18,13 @@ export class UserRepository {
 
   find(id: number): User | undefined {
     return this.users.get(id);
+  }
+
+  findByEmail(email: string): User | undefined {
+    for (const user of this.users.values()) {
+      if (user.email === email) return user;
+    }
+    return undefined;
   }
 
   insert(data: Omit<User, 'id'>): User {
