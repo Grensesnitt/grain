@@ -4,6 +4,7 @@ import {
   Ctx,
   Get,
   Post,
+  Public,
   UnauthorizedError,
   UseGuard,
   t,
@@ -26,6 +27,7 @@ export class AuthController {
   ) {}
 
   @Post('/login', { body: Login })
+  @Public()
   async login(@Body() body: Static<typeof Login>) {
     const user = await this.users.verifyCredentials(body.email, body.password);
     if (!user) throw new UnauthorizedError('invalid credentials');
