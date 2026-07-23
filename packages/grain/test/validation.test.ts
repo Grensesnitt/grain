@@ -43,3 +43,14 @@ test('params validator coerces too', () => {
   const validate = compileValidator(t.Object({ id: t.Number() }), 'params')
   expect(validate({ id: '42' })).toEqual({ id: 42 })
 })
+
+test('coercion never mutates the caller input object', () => {
+  const validate = compileValidator(Query, 'query')
+  const input = { page: '2', active: 'true' }
+  const output = validate(input)
+  expect(output).not.toBe(input)
+  expect(input).toEqual({ page: '2', active: 'true' })
+  const failing = { page: 'not-a-number' }
+  expect(() => validate(failing)).toThrow(ValidationError)
+  expect(failing).toEqual({ page: 'not-a-number' })
+})
