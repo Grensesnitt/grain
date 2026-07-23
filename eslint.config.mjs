@@ -33,5 +33,5 @@ export default tseslint.config(
         { allowInterfaces: 'with-single-extends' },
       ],
     },
-  },
+  }
 );

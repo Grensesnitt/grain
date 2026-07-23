@@ -1,11 +1,11 @@
-import 'reflect-metadata'
-import { expect, test } from 'bun:test'
-import { Injectable } from '../src/di/injectable'
-import { Container } from '../src/di/container'
+import 'reflect-metadata';
+import { expect, test } from 'bun:test';
+import { Injectable } from '../src/di/injectable';
+import { Container } from '../src/di/container';
 
 @Injectable()
 class Leaf {
-  value = 'leaf'
+  value = 'leaf';
 }
 
 @Injectable()
@@ -15,70 +15,77 @@ class Mid {
 
 @Injectable()
 class Top {
-  constructor(readonly mid: Mid, readonly leaf: Leaf) {}
+  constructor(
+    readonly mid: Mid,
+    readonly leaf: Leaf
+  ) {}
 }
 
 test('resolves a class with no dependencies', () => {
-  const c = new Container()
-  expect(c.resolve(Leaf).value).toBe('leaf')
-})
+  const c = new Container();
+  expect(c.resolve(Leaf).value).toBe('leaf');
+});
 
 test('emitDecoratorMetadata works: nested constructor injection resolves real instances', () => {
-  const c = new Container()
-  const top = c.resolve(Top)
-  expect(top.mid).toBeInstanceOf(Mid)
-  expect(top.mid.leaf).toBeInstanceOf(Leaf)
-})
+  const c = new Container();
+  const top = c.resolve(Top);
+  expect(top.mid).toBeInstanceOf(Mid);
+  expect(top.mid.leaf).toBeInstanceOf(Leaf);
+});
 
 test('everything is a singleton', () => {
-  const c = new Container()
-  const top = c.resolve(Top)
-  expect(c.resolve(Top)).toBe(top)
-  expect(top.leaf).toBe(top.mid.leaf)
-})
+  const c = new Container();
+  const top = c.resolve(Top);
+  expect(c.resolve(Top)).toBe(top);
+  expect(top.leaf).toBe(top.mid.leaf);
+});
 
 test('unmarked classes are rejected with a clear error', () => {
   class Plain {}
-  const c = new Container()
+  const c = new Container();
   expect(() => c.resolve(Plain)).toThrow(
-    'Cannot resolve Plain: class is not marked with @Injectable() or @Controller()',
-  )
-})
+    'Cannot resolve Plain: class is not marked with @Injectable() or @Controller()'
+  );
+});
 
 test('circular dependencies throw at resolve time with the full chain', () => {
   @Injectable()
-  class A { constructor(_b: unknown) {} }
+  class A {
+    constructor(_b: unknown) {}
+  }
   @Injectable()
-  class B { constructor(_a: unknown) {} }
+  class B {
+    constructor(_a: unknown) {}
+  }
   // Simulate what a circular import produces: A needs B, B needs A.
-  Reflect.defineMetadata('design:paramtypes', [B], A)
-  Reflect.defineMetadata('design:paramtypes', [A], B)
-  const c = new Container()
-  expect(() => c.resolve(A)).toThrow('Circular dependency detected: A → B → A')
-})
+  Reflect.defineMetadata('design:paramtypes', [B], A);
+  Reflect.defineMetadata('design:paramtypes', [A], B);
+  const c = new Container();
+  expect(() => c.resolve(A)).toThrow('Circular dependency detected: A → B → A');
+});
 
 test('non-class constructor params throw a clear error', () => {
   @Injectable()
   class NeedsString {
     constructor(readonly name: string) {}
   }
-  const c = new Container()
+  const c = new Container();
   expect(() => c.resolve(NeedsString)).toThrow(
-    'Cannot inject parameter 0 of NeedsString',
-  )
-})
+    'Cannot inject parameter 0 of NeedsString'
+  );
+});
 
 test('an undecorated subclass of an injectable class is rejected, not silently miswired', () => {
-  const c = new Container()
+  const c = new Container();
   class Sub extends Mid {}
   expect(() => c.resolve(Sub)).toThrow(
-    'Cannot resolve Sub: class is not marked with @Injectable() or @Controller()',
-  )
-})
+    'Cannot resolve Sub: class is not marked with @Injectable() or @Controller()'
+  );
+});
 
 test('a decorated subclass without its own constructor resolves via inherited paramtypes', () => {
   @Injectable()
   class DecoratedSub extends Mid {}
-  const c = new Container()
-  expect(c.resolve(DecoratedSub).leaf).toBeInstanceOf(Leaf)
-})
+  const c = new Container();
+  expect(c.resolve(DecoratedSub).leaf).toBeInstanceOf(Leaf);
+});

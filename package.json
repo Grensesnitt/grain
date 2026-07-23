@@ -1,7 +1,11 @@
 {
   "name": "grensesnitt-framework",
   "private": true,
-  "workspaces": ["packages/*", "apps/*", "bench"],
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "bench"
+  ],
   "scripts": {
     "test": "bun test",
     "check": "tsc --noEmit",

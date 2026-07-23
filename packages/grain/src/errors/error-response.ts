@@ -1,8 +1,8 @@
-import { HttpError } from './http-error'
+import { HttpError } from './http-error';
 
 export function errorToResponse(
   err: unknown,
-  dev: boolean = process.env.NODE_ENV === 'development',
+  dev: boolean = process.env.NODE_ENV === 'development'
 ): Response {
   if (err instanceof HttpError) {
     return Response.json(
@@ -12,11 +12,11 @@ export function errorToResponse(
         message: err.message,
         ...(err.details !== undefined && { details: err.details }),
       },
-      { status: err.statusCode },
-    )
+      { status: err.statusCode }
+    );
   }
-  console.error(err)
-  const stack = dev && err instanceof Error ? err.stack : undefined
+  console.error(err);
+  const stack = dev && err instanceof Error ? err.stack : undefined;
   return Response.json(
     {
       statusCode: 500,
@@ -24,6 +24,6 @@ export function errorToResponse(
       message: 'Internal Server Error',
       ...(stack !== undefined && { details: stack }),
     },
-    { status: 500 },
-  )
+    { status: 500 }
+  );
 }
