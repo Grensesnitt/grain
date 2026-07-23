@@ -67,3 +67,18 @@ test('non-class constructor params throw a clear error', () => {
     'Cannot inject parameter 0 of NeedsString',
   )
 })
+
+test('an undecorated subclass of an injectable class is rejected, not silently miswired', () => {
+  const c = new Container()
+  class Sub extends Mid {}
+  expect(() => c.resolve(Sub)).toThrow(
+    'Cannot resolve Sub: class is not marked with @Injectable() or @Controller()',
+  )
+})
+
+test('a decorated subclass without its own constructor resolves via inherited paramtypes', () => {
+  @Injectable()
+  class DecoratedSub extends Mid {}
+  const c = new Container()
+  expect(c.resolve(DecoratedSub).leaf).toBeInstanceOf(Leaf)
+})

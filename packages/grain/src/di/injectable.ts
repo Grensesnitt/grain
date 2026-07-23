@@ -7,7 +7,7 @@ export function markInjectable(target: Function): void {
 }
 
 export function isInjectable(target: Function): boolean {
-  return Reflect.getMetadata(INJECTABLE, target) === true
+  return Reflect.getOwnMetadata(INJECTABLE, target) === true
 }
 
 export function Injectable(): ClassDecorator {
