@@ -27,6 +27,8 @@ export class AuthController {
   ) {}
 
   @Post('/login', { body: Login })
+  // @Public is a no-op until app.ts enables global guards; login must stay
+  // reachable without a token, or nobody could ever obtain one.
   @Public()
   async login(@Body() body: Static<typeof Login>) {
     const user = await this.users.verifyCredentials(body.email, body.password);
