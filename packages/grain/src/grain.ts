@@ -1,5 +1,11 @@
 import type { Server } from 'bun';
-import type { Ctor, HttpMethod, OnErrorHook, OnRequestHook } from './types';
+import type {
+  Ctor,
+  Guard,
+  HttpMethod,
+  OnErrorHook,
+  OnRequestHook,
+} from './types';
 import { Container } from './di/container';
 import { readControllerMeta } from './decorators/metadata';
 import { compileRoute, type CompiledHandler } from './router/compile-route';
@@ -7,6 +13,7 @@ import { buildMatcher, type MatcherEntry } from './router/matcher';
 
 export interface GrainOptions {
   controllers: Ctor[];
+  guards?: Ctor<Guard>[];
 }
 
 interface Compiled {
@@ -43,6 +50,9 @@ export class Grain {
   private compile(): Compiled {
     if (this.compiled) return this.compiled;
     const routes: Compiled['routes'] = {};
+    const globalGuards = (this.options.guards ?? []).map((g) =>
+      this.container.resolve(g)
+    );
     for (const controllerClass of this.options.controllers) {
       const instance = this.container.resolve(controllerClass) as object;
       const { routes: metas } = readControllerMeta(controllerClass);
@@ -57,7 +67,10 @@ export class Grain {
           httpCode: meta.httpCode,
           paramMetas: meta.params,
           schemas: meta.schemas,
-          guards: meta.guards.map((g) => this.container.resolve(g)),
+          guards: [
+            ...(meta.isPublic ? [] : globalGuards),
+            ...meta.guards.map((g) => this.container.resolve(g)),
+          ],
           onRequest: this.onRequestHooks,
           onError: this.onErrorHooks,
         });

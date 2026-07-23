@@ -9,6 +9,7 @@ export { Controller } from './decorators/controller';
 export { Delete, Get, Patch, Post, Put } from './decorators/route';
 export { Body, Ctx, Param, Query } from './decorators/params';
 export { HttpCode } from './decorators/http-code';
+export { Public } from './decorators/public';
 export { UseGuard } from './decorators/use-guard';
 export { Injectable } from './di/injectable';
 export {

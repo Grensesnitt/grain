@@ -7,6 +7,7 @@ export const ROUTES = Symbol.for('grain:routes');
 export const PARAMS = Symbol.for('grain:params');
 export const HTTP_CODE = Symbol.for('grain:http-code');
 export const GUARDS = Symbol.for('grain:guards');
+export const PUBLIC = Symbol.for('grain:public');
 
 export interface RouteSchemas {
   body?: TSchema;
@@ -31,6 +32,7 @@ export interface ResolvedRoute extends RawRoute {
   httpCode?: number;
   params: ParamMeta[];
   guards: Ctor<Guard>[];
+  isPublic: boolean;
 }
 
 export function joinPath(prefix: string, path: string): string {
@@ -45,6 +47,7 @@ export function readControllerMeta(ctor: Ctor): {
   const prefix: string = Reflect.getMetadata(CONTROLLER_PREFIX, ctor) ?? '/';
   const raw: RawRoute[] = Reflect.getMetadata(ROUTES, ctor) ?? [];
   const classGuards: Ctor<Guard>[] = Reflect.getMetadata(GUARDS, ctor) ?? [];
+  const classPublic = Reflect.getOwnMetadata(PUBLIC, ctor) === true;
   const routes = raw.map((route) => {
     const params: ParamMeta[] =
       Reflect.getMetadata(PARAMS, ctor, route.handlerName) ?? [];
@@ -56,6 +59,9 @@ export function readControllerMeta(ctor: Ctor): {
       httpCode: Reflect.getMetadata(HTTP_CODE, ctor, route.handlerName),
       params: [...params].sort((a, b) => a.index - b.index),
       guards: [...classGuards, ...methodGuards],
+      isPublic:
+        classPublic ||
+        Reflect.getOwnMetadata(PUBLIC, ctor, route.handlerName) === true,
     };
   });
   return { prefix: joinPath(prefix, ''), routes };

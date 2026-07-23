@@ -10,6 +10,7 @@ import {
   NotFoundError,
   Param,
   Post,
+  Public,
   Query,
   UnauthorizedError,
   UseGuard,
@@ -219,6 +220,111 @@ test('overlapping param patterns: handle() matches live Bun.serve precedence', a
   } finally {
     app.stop();
   }
+});
+
+@Injectable()
+class GlobalOrderGuard implements Guard {
+  canActivate(ctx: CtxType) {
+    ((ctx.store.order ??= []) as string[]).push('global');
+    return true;
+  }
+}
+
+@Injectable()
+class ClassOrderGuard implements Guard {
+  canActivate(ctx: CtxType) {
+    ((ctx.store.order ??= []) as string[]).push('class');
+    return true;
+  }
+}
+
+@Injectable()
+class MethodOrderGuard implements Guard {
+  canActivate(ctx: CtxType) {
+    ((ctx.store.order ??= []) as string[]).push('method');
+    return true;
+  }
+}
+
+@Injectable()
+class DenyService {
+  readonly reason = 'denied by DI-injected service';
+}
+
+@Injectable()
+class DenyGuard implements Guard {
+  constructor(readonly deny: DenyService) {}
+  canActivate(): boolean {
+    throw new UnauthorizedError(this.deny.reason);
+  }
+}
+
+@Controller('/g')
+@UseGuard(ClassOrderGuard)
+class GuardedController {
+  @Get('/order')
+  @UseGuard(MethodOrderGuard)
+  order(@Ctx() ctx: CtxType) {
+    return { order: ctx.store.order };
+  }
+
+  @Get('/open')
+  @Public()
+  open(@Ctx() ctx: CtxType) {
+    return { order: ctx.store.order ?? [] };
+  }
+}
+
+@Controller('/pub')
+@Public()
+class PublicController {
+  @Get('/a')
+  a() {
+    return { ok: true };
+  }
+}
+
+test('global guards run on every route, ordered global → class → method', async () => {
+  const app = new Grain({
+    controllers: [GuardedController],
+    guards: [GlobalOrderGuard],
+  });
+  const res = await app.handle(new Request('http://localhost/g/order'));
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ order: ['global', 'class', 'method'] });
+});
+
+test('@Public on a method skips global guards but keeps local guards', async () => {
+  const app = new Grain({
+    controllers: [GuardedController],
+    guards: [GlobalOrderGuard],
+  });
+  const res = await app.handle(new Request('http://localhost/g/open'));
+  expect(await res.json()).toEqual({ order: ['class'] });
+});
+
+test('@Public on a controller exempts all its routes from global guards', async () => {
+  const app = new Grain({
+    controllers: [PublicController],
+    guards: [DenyGuard],
+  });
+  const res = await app.handle(new Request('http://localhost/pub/a'));
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ ok: true });
+});
+
+test('global guards get DI and their failures map like any guard', async () => {
+  const app = new Grain({
+    controllers: [GuardedController, PublicController],
+    guards: [DenyGuard],
+  });
+  const denied = await app.handle(new Request('http://localhost/g/order'));
+  expect(denied.status).toBe(401);
+  expect(((await denied.json()) as { message: string }).message).toBe(
+    'denied by DI-injected service'
+  );
+  const open = await app.handle(new Request('http://localhost/pub/a'));
+  expect(open.status).toBe(200);
 });
 
 test('hostile paths: handle() and live Bun.serve agree on status', async () => {
