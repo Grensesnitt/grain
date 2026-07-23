@@ -327,6 +327,26 @@ test('global guards get DI and their failures map like any guard', async () => {
   expect(open.status).toBe(200);
 });
 
+@Controller('/pubguarded')
+@Public()
+@UseGuard(ClassOrderGuard)
+class PublicGuardedController {
+  @Get('/x')
+  x(@Ctx() ctx: CtxType) {
+    return { order: ctx.store.order ?? [] };
+  }
+}
+
+test('class-level @Public skips global guards but keeps class-level @UseGuard', async () => {
+  const app = new Grain({
+    controllers: [PublicGuardedController],
+    guards: [GlobalOrderGuard],
+  });
+  const res = await app.handle(new Request('http://localhost/pubguarded/x'));
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ order: ['class'] });
+});
+
 test('hostile paths: handle() and live Bun.serve agree on status', async () => {
   const app = makeApp();
   const server = app.listen(0);
