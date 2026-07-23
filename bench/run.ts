@@ -14,7 +14,9 @@ async function waitReady(url: string): Promise<void> {
   for (let i = 0; i < 100; i++) {
     try {
       if ((await fetch(url)).ok) return;
-    } catch {}
+    } catch {
+      /* server not ready yet — keep polling */
+    }
     await Bun.sleep(50);
   }
   throw new Error(`server at ${url} never became ready`);
