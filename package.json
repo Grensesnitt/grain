@@ -1,0 +1,14 @@
+{
+  "name": "grensesnitt-framework",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "bun test",
+    "check": "tsc --noEmit",
+    "bench": "bun bench/run.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.5.0"
+  }
+}
