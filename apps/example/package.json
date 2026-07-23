@@ -1,6 +1,10 @@
 {
   "name": "grain-example",
   "private": true,
+  "scripts": {
+    "start": "bun src/main.ts",
+    "dev": "bun --watch src/main.ts"
+  },
   "dependencies": {
     "@grensesnitt/grain": "workspace:*"
   }
