@@ -1,0 +1,7 @@
+{
+  "name": "grain-example",
+  "private": true,
+  "dependencies": {
+    "@grensesnitt/grain": "workspace:*"
+  }
+}
