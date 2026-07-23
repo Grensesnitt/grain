@@ -30,10 +30,10 @@ test('root path matches', () => {
   expect(match('/')).not.toBeNull()
 })
 
-test('empty request-path segments never match (mirrors Bun.serve)', () => {
+test('empty request-path segments never match, except leading ones which collapse (mirrors Bun.serve)', () => {
   const match = buildMatcher(entries('/users', '/users/:id'))
   expect(match('/users/')).toBeNull()
-  expect(match('//users')).toBeNull()
+  expect(match('//users')).not.toBeNull()
   expect(match('/users//1')).toBeNull()
 })
 

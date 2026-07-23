@@ -15,12 +15,16 @@ function toSegments(path: string): string[] {
   return path.split('/').filter((s) => s.length > 0)
 }
 
-// Request paths are matched strictly: any empty segment (trailing slash,
-// double slash) makes the path unmatchable, mirroring Bun.serve's native
-// router. Patterns stay permissive — they are canonical by construction.
+// Request paths are matched strictly, mirroring Bun.serve's native router:
+// leading empty segments collapse ("//items" routes as "/items" — verified
+// against raw Bun.serve), while any internal or trailing empty segment
+// (double or trailing slash) makes the path unmatchable.
 function toRequestSegments(pathname: string): string[] | null {
   if (pathname === '/') return []
-  const segments = pathname.split('/').slice(1)
+  let segments = pathname.split('/').slice(1)
+  let start = 0
+  while (start < segments.length && segments[start] === '') start++
+  segments = segments.slice(start)
   return segments.some((s) => s.length === 0) ? null : segments
 }
 
