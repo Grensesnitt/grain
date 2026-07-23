@@ -43,10 +43,14 @@ for (const target of TARGETS) {
     stdout: 'ignore',
     stderr: 'inherit',
   })
-  const url = `http://localhost:${target.port}/ping`
-  await waitReady(url)
-  const rps = await measure(url)
-  console.log(`${target.name.padEnd(14)} ${rps} req/s`)
-  proc.kill()
-  await proc.exited
+  try {
+    const url = `http://localhost:${target.port}/ping`
+    await waitReady(url)
+    const rps = await measure(url)
+    console.log(`${target.name.padEnd(14)} ${rps} req/s`)
+  } finally {
+    // kill even when waitReady/measure throws — never orphan a server
+    proc.kill()
+    await proc.exited
+  }
 }
