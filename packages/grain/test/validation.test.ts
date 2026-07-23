@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { Type as t } from '@sinclair/typebox'
 import { compileValidator } from '../src/validation/compile'
 import { ValidationError } from '../src/errors/http-error'
+import '../src/validation/formats'
 
 const Body = t.Object({ name: t.String({ minLength: 1 }), age: t.Number() })
 const Query = t.Object({ page: t.Number(), active: t.Optional(t.Boolean()) })
@@ -53,4 +54,10 @@ test('coercion never mutates the caller input object', () => {
   const failing = { page: 'not-a-number' }
   expect(() => validate(failing)).toThrow(ValidationError)
   expect(failing).toEqual({ page: 'not-a-number' })
+})
+
+test('email format is registered so `format: "email"` schemas validate out of the box', () => {
+  const validate = compileValidator(t.Object({ email: t.String({ format: 'email' }) }), 'body')
+  expect(validate({ email: 'runar@grensesnitt.no' })).toEqual({ email: 'runar@grensesnitt.no' })
+  expect(() => validate({ email: 'not-an-email' })).toThrow(ValidationError)
 })

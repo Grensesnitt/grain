@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import './validation/formats'
 import type { Ctx as CtxShape } from './types'
 
 export const GRAIN_VERSION = '0.1.0'
