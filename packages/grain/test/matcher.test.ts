@@ -34,3 +34,9 @@ test('trailing slash on request path is tolerated', () => {
   const match = buildMatcher(entries('/users'))
   expect(match('/users/')).not.toBeNull()
 })
+
+test('static segment beats param at the same position, regardless of registration order', () => {
+  const match = buildMatcher(entries('/a/:b/c', '/a/x/:y'))
+  expect(match('/a/x/c')!.params).toEqual({ y: 'c' })
+  expect(match('/a/q/c')!.params).toEqual({ b: 'q' })
+})

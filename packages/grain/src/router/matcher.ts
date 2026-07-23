@@ -15,6 +15,19 @@ function toSegments(path: string): string[] {
   return path.split('/').filter((s) => s.length > 0)
 }
 
+// Left-to-right per-segment specificity: a static segment beats a param
+// segment at the first differing position (mirrors Bun.serve's router);
+// param-count is the tie-break.
+function compareSpecificity(a: CompiledEntry, b: CompiledEntry): number {
+  const len = Math.min(a.segments.length, b.segments.length)
+  for (let i = 0; i < len; i++) {
+    const aParam = a.segments[i]!.startsWith(':')
+    const bParam = b.segments[i]!.startsWith(':')
+    if (aParam !== bParam) return aParam ? 1 : -1
+  }
+  return a.paramCount - b.paramCount
+}
+
 export function buildMatcher(entries: MatcherEntry[]) {
   // Precedence mirrors Bun.serve: exact routes beat parameterized ones.
   const compiled: CompiledEntry[] = entries
@@ -26,7 +39,7 @@ export function buildMatcher(entries: MatcherEntry[]) {
         paramCount: segments.filter((s) => s.startsWith(':')).length,
       }
     })
-    .sort((a, b) => a.paramCount - b.paramCount)
+    .sort(compareSpecificity)
 
   return (pathname: string) => {
     const parts = toSegments(pathname)

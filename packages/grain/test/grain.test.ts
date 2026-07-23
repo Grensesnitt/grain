@@ -147,3 +147,22 @@ test('handle() and a live Bun server give identical responses', async () => {
     app.stop()
   }
 })
+
+test('overlapping param patterns: handle() matches live Bun.serve precedence', async () => {
+  @Controller('/overlap')
+  class OverlapController {
+    @Get('/:b/c') paramFirst(@Param('b') b: string) { return { via: 'paramFirst', b } }
+    @Get('/x/:y') staticX(@Param('y') y: string) { return { via: 'staticX', y } }
+  }
+  const app = new Grain({ controllers: [OverlapController] })
+  const server = app.listen(0)
+  try {
+    for (const path of ['/overlap/x/c', '/overlap/q/c']) {
+      const inProcess = await (await app.handle(new Request(`http://localhost${path}`))).json()
+      const overWire = await (await fetch(`http://localhost:${server.port}${path}`)).json()
+      expect(inProcess).toEqual(overWire)
+    }
+  } finally {
+    app.stop()
+  }
+})
