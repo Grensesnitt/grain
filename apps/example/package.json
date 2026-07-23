@@ -6,6 +6,7 @@
     "dev": "bun --watch src/main.ts"
   },
   "dependencies": {
-    "@grensesnitt/grain": "workspace:*"
+    "@grensesnitt/grain": "workspace:*",
+    "jose": "^6.2.4"
   }
 }
