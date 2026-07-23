@@ -144,3 +144,18 @@ test('login with JWT_SECRET unset is a loud 500', async () => {
     process.env.JWT_SECRET = saved;
   }
 });
+
+test('me with JWT_SECRET unset is a loud 500, not a 401', async () => {
+  await register('cfg2@x.no');
+  const { token } = (await (await login('cfg2@x.no')).json()) as {
+    token: string;
+  };
+  const saved = process.env.JWT_SECRET;
+  delete process.env.JWT_SECRET;
+  try {
+    const res = await get('/auth/me', { authorization: `Bearer ${token}` });
+    expect(res.status).toBe(500);
+  } finally {
+    process.env.JWT_SECRET = saved;
+  }
+});

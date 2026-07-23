@@ -5,7 +5,7 @@ import {
   type Guard,
 } from '@grensesnitt/grain';
 import { UserService } from '../users/user.service';
-import { JwtService } from './jwt.service';
+import { JwtConfigError, JwtService } from './jwt.service';
 
 @Injectable()
 export class JwtGuard implements Guard {
@@ -22,9 +22,7 @@ export class JwtGuard implements Guard {
       ({ sub } = await this.jwt.verify(header.slice('Bearer '.length)));
     } catch (err) {
       // configuration errors stay loud (500); bad tokens become 401
-      if (err instanceof Error && err.message === 'JWT_SECRET is not set') {
-        throw err;
-      }
+      if (err instanceof JwtConfigError) throw err;
       throw new UnauthorizedError();
     }
     try {

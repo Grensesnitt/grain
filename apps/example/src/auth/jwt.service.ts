@@ -7,11 +7,13 @@ export interface JwtPayload {
   email: string;
 }
 
+export class JwtConfigError extends Error {}
+
 const encoder = new TextEncoder();
 
 function secretKey(): Uint8Array {
   const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET is not set');
+  if (!secret) throw new JwtConfigError('JWT_SECRET is not set');
   return encoder.encode(secret);
 }
 
