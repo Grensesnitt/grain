@@ -11,7 +11,7 @@ export class AuthGuard implements Guard {
   constructor(private readonly tokens: TokenService) {}
 
   canActivate(ctx: Ctx): boolean {
-    const token = ctx.req.headers.get('authorization')?.replace(/^Bearer /, '');
+    const token = ctx.req.headers.get('x-api-token') ?? undefined;
     if (!this.tokens.isValid(token)) throw new UnauthorizedError();
     ctx.store.token = token;
     return true;

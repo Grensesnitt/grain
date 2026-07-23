@@ -14,7 +14,7 @@ const jsonPost = (path: string, body: unknown, token?: string) =>
     body: JSON.stringify(body),
     headers: {
       'content-type': 'application/json',
-      ...(token && { authorization: `Bearer ${token}` }),
+      ...(token && { 'x-api-token': token }),
     },
   });
 
@@ -47,7 +47,7 @@ test('full CRUD flow', async () => {
   const gone = await app.handle(
     new Request(`http://localhost/users/${user.id}`, {
       method: 'DELETE',
-      headers: { authorization: 'Bearer test-token' },
+      headers: { 'x-api-token': 'test-token' },
     })
   );
   expect(gone.status).toBe(204);
