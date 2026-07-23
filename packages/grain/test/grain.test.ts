@@ -158,9 +158,27 @@ test('overlapping param patterns: handle() matches live Bun.serve precedence', a
   const server = app.listen(0)
   try {
     for (const path of ['/overlap/x/c', '/overlap/q/c']) {
-      const inProcess = await (await app.handle(new Request(`http://localhost${path}`))).json()
-      const overWire = await (await fetch(`http://localhost:${server.port}${path}`)).json()
+      const inProcessRes = await app.handle(new Request(`http://localhost${path}`))
+      const overWireRes = await fetch(`http://localhost:${server.port}${path}`)
+      expect(overWireRes.status).toBe(inProcessRes.status)
+      const inProcess = await inProcessRes.json()
+      const overWire = await overWireRes.json()
       expect(inProcess).toEqual(overWire)
+    }
+  } finally {
+    app.stop()
+  }
+})
+
+test('hostile paths: handle() and live Bun.serve agree on status', async () => {
+  const app = makeApp()
+  const server = app.listen(0)
+  try {
+    const paths = ['/items/42/', '/items//42', '//items/42', '/items/%zz', '/items/%2F']
+    for (const path of paths) {
+      const inProcess = await app.handle(new Request(`http://localhost${path}`))
+      const overWire = await fetch(`http://localhost:${server.port}${path}`)
+      expect(`${path} -> ${overWire.status}`).toBe(`${path} -> ${inProcess.status}`)
     }
   } finally {
     app.stop()

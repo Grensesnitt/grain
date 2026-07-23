@@ -15,6 +15,23 @@ function toSegments(path: string): string[] {
   return path.split('/').filter((s) => s.length > 0)
 }
 
+// Request paths are matched strictly: any empty segment (trailing slash,
+// double slash) makes the path unmatchable, mirroring Bun.serve's native
+// router. Patterns stay permissive — they are canonical by construction.
+function toRequestSegments(pathname: string): string[] | null {
+  if (pathname === '/') return []
+  const segments = pathname.split('/').slice(1)
+  return segments.some((s) => s.length === 0) ? null : segments
+}
+
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
 // Left-to-right per-segment specificity: a static segment beats a param
 // segment at the first differing position (mirrors Bun.serve's router);
 // param-count is the tie-break.
@@ -42,13 +59,14 @@ export function buildMatcher(entries: MatcherEntry[]) {
     .sort(compareSpecificity)
 
   return (pathname: string) => {
-    const parts = toSegments(pathname)
+    const parts = toRequestSegments(pathname)
+    if (parts === null) return null
     outer: for (const entry of compiled) {
       if (entry.segments.length !== parts.length) continue
       const params: Record<string, string> = {}
       for (let i = 0; i < parts.length; i++) {
         const seg = entry.segments[i]!
-        if (seg.startsWith(':')) params[seg.slice(1)] = decodeURIComponent(parts[i]!)
+        if (seg.startsWith(':')) params[seg.slice(1)] = safeDecode(parts[i]!)
         else if (seg !== parts[i]) continue outer
       }
       return { handlers: entry.handlers, params }

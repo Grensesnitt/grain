@@ -30,9 +30,11 @@ test('root path matches', () => {
   expect(match('/')).not.toBeNull()
 })
 
-test('trailing slash on request path is tolerated', () => {
-  const match = buildMatcher(entries('/users'))
-  expect(match('/users/')).not.toBeNull()
+test('empty request-path segments never match (mirrors Bun.serve)', () => {
+  const match = buildMatcher(entries('/users', '/users/:id'))
+  expect(match('/users/')).toBeNull()
+  expect(match('//users')).toBeNull()
+  expect(match('/users//1')).toBeNull()
 })
 
 test('static segment beats param at the same position, regardless of registration order', () => {
