@@ -1,0 +1,8 @@
+{
+  "name": "grain-bench",
+  "private": true,
+  "dependencies": {
+    "@grensesnitt/grain": "workspace:*",
+    "elysia": "^1.3.0"
+  }
+}
