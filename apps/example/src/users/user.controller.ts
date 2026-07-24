@@ -2,24 +2,24 @@ import {
   Body,
   Controller,
   Delete,
+  Dto,
   Get,
   HttpCode,
   Param,
   Post,
   UseGuard,
   t,
-  type Static,
 } from '@grensesnitt/grain';
 import { AuthGuard } from '../auth/auth.guard';
 import { UserService } from './user.service';
 
-const CreateUser = t.Object({
-  name: t.String({ minLength: 1 }),
-  email: t.String({ format: 'email' }),
-  password: t.String({ minLength: 8 }),
-});
-
-const IdParams = t.Object({ id: t.Number() });
+class CreateUserDto extends Dto(
+  t.Object({
+    name: t.String({ minLength: 1 }),
+    email: t.String({ format: 'email' }),
+    password: t.String({ minLength: 8 }),
+  })
+) {}
 
 @Controller('/users')
 export class UserController {
@@ -30,19 +30,19 @@ export class UserController {
     return this.users.list();
   }
 
-  @Get('/:id', { params: IdParams })
+  @Get('/:id')
   getOne(@Param('id') id: number) {
     return this.users.find(id);
   }
 
-  @Post('/', { body: CreateUser })
+  @Post('/')
   @HttpCode(201)
   @UseGuard(AuthGuard)
-  create(@Body() body: Static<typeof CreateUser>) {
+  create(@Body() body: CreateUserDto) {
     return this.users.create(body);
   }
 
-  @Delete('/:id', { params: IdParams })
+  @Delete('/:id')
   @UseGuard(AuthGuard)
   remove(@Param('id') id: number) {
     this.users.remove(id);
