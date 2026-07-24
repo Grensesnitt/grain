@@ -49,7 +49,8 @@ function primitiveSchema(type: unknown): TSchema | null {
 // optional for query (queries are inherently optional).
 export function deriveSchemas(
   params: ParamMeta[],
-  paramTypes: unknown[]
+  paramTypes: unknown[],
+  route: { path: string; context: string }
 ): RouteSchemas {
   const named: Record<'param' | 'query', Record<string, TSchema>> = {
     param: {},
@@ -59,6 +60,14 @@ export function deriveSchemas(
   const schemas: RouteSchemas = {};
 
   for (const meta of params) {
+    if (meta.kind === 'ctx') continue;
+    if (paramTypes.length > 0 && paramTypes[meta.index] === undefined) {
+      throw new Error(
+        `Cannot derive validation for ${route.context}: parameter ${meta.index} ` +
+          `has type undefined (an undefined parameter type usually means a ` +
+          `circular file import)`
+      );
+    }
     const type = paramTypes[meta.index];
     if (meta.kind === 'body') {
       const schema = dtoSchema(type);
@@ -83,6 +92,22 @@ export function deriveSchemas(
   schemas.query =
     whole.query ??
     (Object.keys(named.query).length ? Type.Object(named.query) : undefined);
+
+  const pathParamNames = new Set(
+    route.path
+      .split('/')
+      .filter((segment) => segment.startsWith(':'))
+      .map((segment) => segment.slice(1))
+  );
+  for (const name of Object.keys(named.param)) {
+    if (!pathParamNames.has(name)) {
+      throw new Error(
+        `Cannot derive validation for ${route.context}: @Param('${name}') has no ` +
+          `matching :${name} segment in route path '${route.path}'`
+      );
+    }
+  }
+
   return schemas;
 }
 
@@ -111,12 +136,16 @@ export function readControllerMeta(ctor: Ctor): {
         ctor.prototype,
         route.handlerName
       ) ?? [];
+    const path = joinPath(prefix, route.path);
     return {
       ...route,
-      path: joinPath(prefix, route.path),
+      path,
       httpCode: Reflect.getMetadata(HTTP_CODE, ctor, route.handlerName),
       params: sortedParams,
-      schemas: deriveSchemas(sortedParams, paramTypes),
+      schemas: deriveSchemas(sortedParams, paramTypes, {
+        path,
+        context: `${ctor.name}.${route.handlerName}`,
+      }),
       guards: [...classGuards, ...methodGuards],
       isPublic:
         classPublic ||

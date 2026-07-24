@@ -410,6 +410,11 @@ class DeriveController {
   slugRoute(@Param('slug') slug: string) {
     return { slug, type: typeof slug };
   }
+
+  @Get('/flag')
+  flag(@Query('flag') flag?: boolean) {
+    return { flag: flag ?? null, type: typeof flag };
+  }
 }
 
 interface RawShape {
@@ -460,6 +465,20 @@ test('string-typed params derive nothing and stay strings', async () => {
     new Request('http://localhost/derive/raw-body-check/abc')
   );
   expect(await res.json()).toEqual({ slug: 'abc', type: 'string' });
+});
+
+test('named boolean query params coerce and validate', async () => {
+  const app = new Grain({ controllers: [DeriveController] });
+  const on = await app.handle(
+    new Request('http://localhost/derive/flag?flag=true')
+  );
+  expect(await on.json()).toEqual({ flag: true, type: 'boolean' });
+  const invalid = await app.handle(
+    new Request('http://localhost/derive/flag?flag=nope')
+  );
+  expect(invalid.status).toBe(400);
+  const absent = await app.handle(new Request('http://localhost/derive/flag'));
+  expect(await absent.json()).toEqual({ flag: null, type: 'undefined' });
 });
 
 test('interface-typed body stays raw (no validation)', async () => {

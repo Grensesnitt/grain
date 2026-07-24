@@ -117,3 +117,35 @@ test('a controller without prefix defaults to root', () => {
   expect(meta.prefix).toBe('/');
   expect(meta.routes[0]!.path).toBe('/health');
 });
+
+test('an undefined paramtype (circular import) is a boot error, not silent no-validation', () => {
+  @Controller('/broken')
+  class BrokenController {
+    @Post('/')
+    create(@Body() _body: unknown) {
+      return null;
+    }
+  }
+  Reflect.defineMetadata(
+    'design:paramtypes',
+    [undefined],
+    BrokenController.prototype,
+    'create'
+  );
+  expect(() => readControllerMeta(BrokenController)).toThrow(
+    /circular file import/
+  );
+});
+
+test('a named @Param with no matching path segment is a boot error', () => {
+  @Controller('/typo')
+  class TypoController {
+    @Get('/:id')
+    getOne(@Param('idd') _idd: number) {
+      return null;
+    }
+  }
+  expect(() => readControllerMeta(TypoController)).toThrow(
+    /@Param\('idd'\) has no matching :idd segment/
+  );
+});
