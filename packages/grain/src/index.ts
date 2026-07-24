@@ -21,6 +21,7 @@ export {
   UnauthorizedError,
   ValidationError,
 } from './errors/http-error';
+export { Dto } from './validation/dto';
 // The `Ctx` decorator (value, re-exported above from './decorators/params')
 // and the `Ctx` interface (type, below) intentionally share the identifier so
 // `@Ctx() ctx: Ctx` works with a single import. TypeScript cannot merge a
