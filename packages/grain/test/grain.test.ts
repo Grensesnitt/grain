@@ -1,8 +1,10 @@
+import 'reflect-metadata';
 import { expect, test } from 'bun:test';
 import {
   Body,
   Controller,
   Ctx,
+  Dto,
   Get,
   Grain,
   HttpCode,
@@ -38,26 +40,27 @@ class BearerGuard implements Guard {
 }
 
 const CreateItem = t.Object({ name: t.String({ minLength: 1 }) });
+class CreateItemDto extends Dto(CreateItem) {}
 
 @Controller('/items')
 class ItemController {
   constructor(readonly counter: CounterService) {}
 
-  @Get('/:id', { params: t.Object({ id: t.Number() }) })
+  @Get('/:id')
   getOne(@Param('id') id: number) {
     if (id === 404) throw new NotFoundError(`item ${id} not found`);
     return { id, typeofId: typeof id };
   }
 
-  @Get('/', { query: t.Object({ page: t.Number() }) })
-  list(@Query('page') page: number) {
+  @Get('/')
+  list(@Query('page') page?: number) {
     return { page };
   }
 
-  @Post('/', { body: CreateItem })
+  @Post('/')
   @HttpCode(201)
   @UseGuard(BearerGuard)
-  create(@Body() body: { name: string }, @Ctx() ctx: CtxType) {
+  create(@Body() body: CreateItemDto, @Ctx() ctx: CtxType) {
     return { created: body.name, calls: ctx.store.calls };
   }
 }
@@ -370,4 +373,106 @@ test('hostile paths: handle() and live Bun.serve agree on status', async () => {
   } finally {
     app.stop();
   }
+});
+
+class OptionalProbeController {
+  @Get('/probe')
+  probe(@Query('page') _page?: number) {
+    return null;
+  }
+}
+
+test('EVIDENCE: Bun emits Number in design:paramtypes for an optional annotated param', () => {
+  const types = Reflect.getMetadata(
+    'design:paramtypes',
+    OptionalProbeController.prototype,
+    'probe'
+  ) as unknown[];
+  expect(types[0]).toBe(Number);
+});
+
+const WholeQuery = t.Object({ page: t.Number(), size: t.Number() });
+class WholeQueryDto extends Dto(WholeQuery) {}
+
+@Controller('/derive')
+class DeriveController {
+  @Get('/optional')
+  optional(@Query('page') page?: number) {
+    return { page: page ?? null, type: typeof page };
+  }
+
+  @Get('/whole')
+  whole(@Query() q: WholeQueryDto, @Query('page') _ignored?: number) {
+    return q;
+  }
+
+  @Get('/raw-body-check/:slug')
+  slugRoute(@Param('slug') slug: string) {
+    return { slug, type: typeof slug };
+  }
+}
+
+interface RawShape {
+  anything: string;
+}
+
+@Controller('/rawbody')
+class RawBodyController {
+  @Post('/')
+  create(@Body() body: RawShape) {
+    return { received: body };
+  }
+}
+
+test('absent optional query passes; present invalid query 400s; present valid coerces', async () => {
+  const app = new Grain({ controllers: [DeriveController] });
+  const absent = await app.handle(
+    new Request('http://localhost/derive/optional')
+  );
+  expect(await absent.json()).toEqual({ page: null, type: 'undefined' });
+  const invalid = await app.handle(
+    new Request('http://localhost/derive/optional?page=abc')
+  );
+  expect(invalid.status).toBe(400);
+  const valid = await app.handle(
+    new Request('http://localhost/derive/optional?page=7')
+  );
+  expect(await valid.json()).toEqual({ page: 7, type: 'number' });
+});
+
+test('whole-object Dto wins over named primitive derivations for the slot', async () => {
+  const app = new Grain({ controllers: [DeriveController] });
+  // WholeQuery REQUIRES size — if the named t.Optional(page) derivation had
+  // won or merged, this request would pass; under the Dto schema it 400s.
+  const missingSize = await app.handle(
+    new Request('http://localhost/derive/whole?page=1')
+  );
+  expect(missingSize.status).toBe(400);
+  const ok = await app.handle(
+    new Request('http://localhost/derive/whole?page=1&size=2')
+  );
+  expect(await ok.json()).toEqual({ page: 1, size: 2 });
+});
+
+test('string-typed params derive nothing and stay strings', async () => {
+  const app = new Grain({ controllers: [DeriveController] });
+  const res = await app.handle(
+    new Request('http://localhost/derive/raw-body-check/abc')
+  );
+  expect(await res.json()).toEqual({ slug: 'abc', type: 'string' });
+});
+
+test('interface-typed body stays raw (no validation)', async () => {
+  const app = new Grain({ controllers: [RawBodyController] });
+  const res = await app.handle(
+    new Request('http://localhost/rawbody', {
+      method: 'POST',
+      body: JSON.stringify({ totally: 'unvalidated', extra: 1 }),
+      headers: { 'content-type': 'application/json' },
+    })
+  );
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({
+    received: { totally: 'unvalidated', extra: 1 },
+  });
 });

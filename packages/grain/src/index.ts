@@ -30,6 +30,5 @@ export { Dto } from './validation/dto';
 // the type half is declared locally and merges with the value export instead.
 export interface Ctx extends CtxShape {}
 export type { Guard, HttpMethod, OnErrorHook, OnRequestHook } from './types';
-export type { RouteSchemas } from './decorators/metadata';
 export { Type as t } from '@sinclair/typebox';
 export type { Static, TSchema } from '@sinclair/typebox';

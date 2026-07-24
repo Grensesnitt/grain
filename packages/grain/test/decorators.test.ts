@@ -8,6 +8,7 @@ import { HttpCode } from '../src/decorators/http-code';
 import { UseGuard } from '../src/decorators/use-guard';
 import { joinPath, readControllerMeta } from '../src/decorators/metadata';
 import { isInjectable } from '../src/di/injectable';
+import { Dto } from '../src/validation/dto';
 import type { Ctx as CtxType, Guard } from '../src/types';
 
 class GuardA implements Guard {
@@ -22,6 +23,7 @@ class GuardB implements Guard {
 }
 
 const CreateThing = t.Object({ name: t.String() });
+class CreateThingDto extends Dto(CreateThing) {}
 
 @Controller('/things')
 @UseGuard(GuardA)
@@ -31,10 +33,10 @@ class ThingController {
     return null;
   }
 
-  @Post('/', { body: CreateThing })
+  @Post('/')
   @HttpCode(201)
   @UseGuard(GuardB)
-  create(@Body() _body: unknown) {
+  create(@Body() _body: CreateThingDto) {
     return null;
   }
 

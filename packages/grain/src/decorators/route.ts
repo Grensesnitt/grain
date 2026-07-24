@@ -1,13 +1,13 @@
 import 'reflect-metadata';
 import type { HttpMethod } from '../types';
-import { ROUTES, type RawRoute, type RouteSchemas } from './metadata';
+import { ROUTES, type RawRoute } from './metadata';
 
 function createRouteDecorator(method: HttpMethod) {
-  return (path = '/', schemas: RouteSchemas = {}): MethodDecorator =>
+  return (path = '/'): MethodDecorator =>
     (target, propertyKey) => {
       const ctor = target.constructor;
       const routes: RawRoute[] = Reflect.getMetadata(ROUTES, ctor) ?? [];
-      routes.push({ method, path, handlerName: String(propertyKey), schemas });
+      routes.push({ method, path, handlerName: String(propertyKey) });
       Reflect.defineMetadata(ROUTES, routes, ctor);
     };
 }
