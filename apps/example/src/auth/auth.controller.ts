@@ -2,24 +2,16 @@ import {
   Body,
   Controller,
   Ctx,
-  Dto,
   Get,
   Post,
   Public,
   UnauthorizedError,
   UseGuard,
-  t,
 } from '@grensesnitt/grain';
 import { UserService } from '../users/user.service';
+import { LoginDto } from './dto/login.dto';
 import { JwtGuard } from './jwt.guard';
 import { JwtService } from './jwt.service';
-
-class LoginDto extends Dto(
-  t.Object({
-    email: t.String({ format: 'email' }),
-    password: t.String(),
-  })
-) {}
 
 @Controller('/auth')
 export class AuthController {

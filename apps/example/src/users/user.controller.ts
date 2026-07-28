@@ -2,24 +2,15 @@ import {
   Body,
   Controller,
   Delete,
-  Dto,
   Get,
   HttpCode,
   Param,
   Post,
   UseGuard,
-  t,
 } from '@grensesnitt/grain';
 import { AuthGuard } from '../auth/auth.guard';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UserService } from './user.service';
-
-class CreateUserDto extends Dto(
-  t.Object({
-    name: t.String({ minLength: 1 }),
-    email: t.String({ format: 'email' }),
-    password: t.String({ minLength: 8 }),
-  })
-) {}
 
 @Controller('/users')
 export class UserController {
