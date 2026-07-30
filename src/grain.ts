@@ -6,16 +6,22 @@ import type {
   OnErrorHook,
   OnRequestHook,
   OnResponseHook,
+  WsGateway,
 } from './types';
 import type { Provider } from './di/provider';
 import { Container } from './di/container';
 import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
-import { readControllerMeta } from './decorators/metadata';
+import { readGatewayMeta } from './decorators/gateway';
+import { GUARDS, PUBLIC, readControllerMeta } from './decorators/metadata';
 import { buildOpenApiDoc, type DocsOptions } from './docs/openapi';
 import { swaggerHtml } from './docs/ui';
+import { errorToResponse } from './errors/error-response';
+import { ForbiddenError } from './errors/http-error';
 import { compileRoute, type CompiledHandler } from './router/compile-route';
 import { createCtx } from './router/context';
 import { buildMatcher, type MatcherEntry } from './router/matcher';
+import { compileValidator } from './validation/compile';
+import { websocketHandler, type WsData } from './router/websocket';
 
 export interface GrainOptions {
   controllers: Ctor[];
@@ -23,6 +29,7 @@ export interface GrainOptions {
   providers?: Provider[];
   cors?: CorsOptions;
   docs?: DocsOptions;
+  gateways?: Ctor<WsGateway>[];
 }
 
 interface Compiled {
@@ -46,7 +53,7 @@ export class Grain {
   private readonly onErrorHooks: OnErrorHook[] = [];
   private readonly onResponseHooks: OnResponseHook[] = [];
   private compiled: Compiled | null = null;
-  private server: Server<undefined> | null = null;
+  private server: Server<unknown> | null = null;
 
   constructor(private readonly options: GrainOptions) {
     for (const p of options.providers ?? []) this.container.register(p);
@@ -102,6 +109,51 @@ export class Grain {
           onResponse: this.onResponseHooks,
         });
       }
+    }
+    for (const gatewayClass of this.options.gateways ?? []) {
+      const meta = readGatewayMeta(gatewayClass);
+      const instance = this.container.resolve(gatewayClass) as WsGateway;
+      const validate = meta.message
+        ? compileValidator(meta.message, 'body')
+        : null;
+      const classGuards: Ctor<Guard>[] =
+        Reflect.getMetadata(GUARDS, gatewayClass) ?? [];
+      const isPublic = Reflect.getOwnMetadata(PUBLIC, gatewayClass) === true;
+      const guards = [
+        ...(isPublic ? [] : globalGuards),
+        ...classGuards.map((g) => this.container.resolve(g) as Guard),
+      ];
+      const onRequest = this.onRequestHooks;
+      const onError = this.onErrorHooks;
+      const upgrade: CompiledHandler = async (req, server = null) => {
+        const ctx = createCtx(req, server);
+        try {
+          for (const hook of onRequest) {
+            const out = await hook(ctx);
+            if (out instanceof Response) return out;
+          }
+          for (const guard of guards) {
+            if (!(await guard.canActivate(ctx))) throw new ForbiddenError();
+          }
+          if (!server) {
+            return new Response('Upgrade Required', { status: 426 });
+          }
+          const data: WsData = { ctx, gateway: instance, validate };
+          if (server.upgrade(req, { data }))
+            return undefined as unknown as Response;
+          return new Response('Upgrade failed', { status: 400 });
+        } catch (err) {
+          for (const hook of onError) {
+            const out = await hook(err, ctx);
+            if (out instanceof Response) return out;
+          }
+          return errorToResponse(err);
+        }
+      };
+      const handlers = (routes[meta.path] ??= {});
+      if (handlers.GET)
+        throw new Error(`Duplicate route: GET ${meta.path} (gateway)`);
+      handlers.GET = upgrade;
     }
     if (this.options.docs) {
       const docsPath = this.options.docs.path ?? '/docs';
@@ -166,7 +218,7 @@ export class Grain {
 
   listen(
     portOrOptions: number | { port?: number; hostname?: string } = 3000
-  ): Server<undefined> {
+  ): Server<unknown> {
     const { routes } = this.compile();
     const options =
       typeof portOrOptions === 'number'
@@ -177,6 +229,9 @@ export class Grain {
       hostname: options.hostname,
       routes,
       fetch: (req) => this.finalize(notFound(), req),
+      ...(this.options.gateways?.length
+        ? { websocket: websocketHandler() }
+        : {}),
     });
     return this.server;
   }

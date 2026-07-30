@@ -10,6 +10,7 @@ export { Controller } from './decorators/controller';
 export { Delete, Get, Patch, Post, Put } from './decorators/route';
 export { Body, Ctx, Param, Query } from './decorators/params';
 export { Docs } from './decorators/docs';
+export { Gateway } from './decorators/gateway';
 export { HttpCode } from './decorators/http-code';
 export { Public } from './decorators/public';
 export { UseGuard } from './decorators/use-guard';
@@ -40,6 +41,8 @@ export type {
   OnErrorHook,
   OnRequestHook,
   OnResponseHook,
+  WsClient,
+  WsGateway,
 } from './types';
 export { Type as t } from '@sinclair/typebox';
 export type { Static, TSchema } from '@sinclair/typebox';

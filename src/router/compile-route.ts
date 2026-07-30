@@ -16,7 +16,7 @@ import { toResponse } from './respond';
 
 export type CompiledHandler = (
   req: Request,
-  server?: Server<undefined> | null
+  server?: Server<unknown> | null
 ) => Promise<Response>;
 
 export interface CompileRouteInput {

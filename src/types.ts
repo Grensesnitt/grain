@@ -20,13 +20,26 @@ export interface Ctx {
   query: Record<string, any>;
   store: Record<string, unknown>;
   body: unknown;
-  server: Server<undefined> | null;
+  server: Server<unknown> | null;
   cookies: Record<string, string>;
   setCookie(name: string, value: string, options?: CookieOptions): void;
 }
 
 export interface Guard {
   canActivate(ctx: Ctx): boolean | Promise<boolean>;
+}
+
+export interface WsClient {
+  id: string;
+  ctx: Ctx;
+  send(data: unknown): void; // JSON.stringify + ws.send
+  close(code?: number, reason?: string): void;
+}
+
+export interface WsGateway<M = unknown> {
+  open?(client: WsClient): void | Promise<void>;
+  message?(client: WsClient, message: M): void | Promise<void>;
+  close?(client: WsClient): void | Promise<void>;
 }
 
 export type OnRequestHook = (

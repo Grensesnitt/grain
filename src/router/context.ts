@@ -4,7 +4,7 @@ import { parseCookies, serializeCookie } from './cookies';
 
 export function createCtx(
   req: Request,
-  server: Server<undefined> | null = null,
+  server: Server<unknown> | null = null,
   cookieSink: string[] = []
 ): Ctx {
   let query: Record<string, any> | null = null;
