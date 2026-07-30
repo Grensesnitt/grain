@@ -28,3 +28,41 @@ test('app boots with working DI when started from the package directory', async 
     await proc.exited;
   }
 });
+
+test('serves OpenAPI docs and an echo websocket', async () => {
+  const port = '3342';
+  const baseUrl = `http://localhost:${port}`;
+  const proc = Bun.spawn(['bun', 'src/main.ts'], {
+    cwd: new URL('..', import.meta.url).pathname,
+    env: { ...process.env, API_TOKEN: 'live-test', PORT: port },
+    stdout: 'ignore',
+    stderr: 'ignore',
+  });
+  try {
+    let healthy = false;
+    for (let i = 0; i < 50 && !healthy; i++) {
+      try {
+        healthy = (await fetch(`${baseUrl}/health`)).ok;
+      } catch {
+        await Bun.sleep(50);
+      }
+    }
+    expect(healthy).toBe(true);
+
+    const json = await fetch(`${baseUrl}/docs/json`);
+    expect(json.status).toBe(200);
+    const doc = (await json.json()) as any;
+    expect(doc.info.title).toBe('Grain Example');
+
+    const echoed = await new Promise((resolve, reject) => {
+      const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/echo`);
+      ws.onmessage = (e) => (resolve(JSON.parse(String(e.data))), ws.close());
+      ws.onopen = () => ws.send(JSON.stringify({ event: 'ping' }));
+      ws.onerror = () => reject(new Error('ws failed'));
+    });
+    expect(echoed).toEqual({ event: 'ping' });
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+});

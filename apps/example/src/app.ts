@@ -2,11 +2,15 @@ import { Grain } from '@grensesnitt/grain';
 import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health/health.controller';
 import { UserController } from './users/user.controller';
+import { EchoGateway } from './echo/echo.gateway';
 // import { JwtGuard } from './auth/jwt.guard';
 
 export function buildApp(): Grain {
   const app = new Grain({
     controllers: [HealthController, UserController, AuthController],
+    gateways: [EchoGateway],
+    cors: { origin: true, credentials: true },
+    docs: { info: { title: 'Grain Example', version: '1.0' } },
     // --- Global JWT auth (uncomment this and the JwtGuard import above) ---
     // Every route then requires `Authorization: Bearer <jwt>` except those
     // marked @Public (the health check and /auth/login). Note that the
