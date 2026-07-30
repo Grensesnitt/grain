@@ -223,6 +223,10 @@ export class Grain {
       typeof portOrOptions === 'number'
         ? { port: portOrOptions }
         : portOrOptions;
+    // The cast keeps grain consumable as TS source by non-strict consumers:
+    // Bun.serve's overloaded Options union (with `{prop?: never}` exclusion
+    // arms) resolves differently under `strictNullChecks: false`, rejecting
+    // this perfectly valid options object at the consumer's typecheck.
     this.server = Bun.serve({
       port: options.port ?? 3000,
       hostname: options.hostname,
@@ -231,7 +235,7 @@ export class Grain {
       ...(this.options.gateways?.length
         ? { websocket: websocketHandler() }
         : {}),
-    });
+    } as Parameters<typeof Bun.serve>[0]) as Server<unknown>;
     return this.server;
   }
 
