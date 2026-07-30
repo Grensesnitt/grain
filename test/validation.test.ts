@@ -72,3 +72,25 @@ test('email format is registered so `format: "email"` schemas validate out of th
   });
   expect(() => validate({ email: 'not-an-email' })).toThrow(ValidationError);
 });
+
+test('query validator fills declared defaults for missing keys', () => {
+  const schema = t.Object(
+    {
+      page: t.Optional(t.Number({ minimum: 1, default: 1 })),
+      order: t.Optional(
+        t.Union([t.Literal('asc'), t.Literal('desc')], { default: 'asc' })
+      ),
+    },
+    { additionalProperties: false }
+  );
+  const validate = compileValidator(schema, 'query');
+  expect(validate({})).toEqual({ page: 1, order: 'asc' });
+  expect(validate({ page: '3' })).toEqual({ page: 3, order: 'asc' });
+});
+
+test('body validator also applies defaults but never coerces types', () => {
+  const schema = t.Object({ n: t.Number({ default: 7 }), s: t.String() });
+  const validate = compileValidator(schema, 'body');
+  expect(validate({ s: 'x' })).toEqual({ n: 7, s: 'x' });
+  expect(() => validate({ n: '7', s: 'x' })).toThrow();
+});
