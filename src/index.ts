@@ -12,6 +12,7 @@ export { HttpCode } from './decorators/http-code';
 export { Public } from './decorators/public';
 export { UseGuard } from './decorators/use-guard';
 export { Injectable } from './di/injectable';
+export type { Provider } from './di/provider';
 export {
   BadRequestError,
   ConflictError,

@@ -6,6 +6,7 @@ import type {
   OnErrorHook,
   OnRequestHook,
 } from './types';
+import type { Provider } from './di/provider';
 import { Container } from './di/container';
 import { readControllerMeta } from './decorators/metadata';
 import { compileRoute, type CompiledHandler } from './router/compile-route';
@@ -14,6 +15,7 @@ import { buildMatcher, type MatcherEntry } from './router/matcher';
 export interface GrainOptions {
   controllers: Ctor[];
   guards?: Ctor<Guard>[];
+  providers?: Provider[];
 }
 
 interface Compiled {
@@ -35,7 +37,9 @@ export class Grain {
   private compiled: Compiled | null = null;
   private server: Server<undefined> | null = null;
 
-  constructor(private readonly options: GrainOptions) {}
+  constructor(private readonly options: GrainOptions) {
+    for (const p of options.providers ?? []) this.container.register(p);
+  }
 
   onRequest(hook: OnRequestHook): this {
     this.onRequestHooks.push(hook);
