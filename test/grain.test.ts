@@ -573,4 +573,39 @@ describe('cookies and server ctx', () => {
       srv.stop(true);
     }
   });
+
+  test('cookies set in an onRequest hook survive its short-circuit response', async () => {
+    const hooked = app().onRequest((ctx) => {
+      ctx.setCookie('Session', 'hooked', { path: '/api' });
+      return new Response('cut', { status: 418 });
+    });
+    const res = await hooked.handle(new Request('http://x/cookie/read'));
+    expect(res.status).toBe(418);
+    const header = res.headers.get('set-cookie')!;
+    expect(header).toContain('Session=hooked');
+    expect(header).toContain('Path=/api');
+  });
+
+  test('missing Cookie header parses to an empty object', async () => {
+    const res = await app().handle(new Request('http://x/cookie/read'));
+    expect(await res.json()).toEqual({ seen: null });
+  });
+
+  test('malformed percent-encoding falls back to the raw cookie value', async () => {
+    const res = await app().handle(
+      new Request('http://x/cookie/read', {
+        headers: { cookie: 'Session=%E0%A4%A' },
+      })
+    );
+    expect(await res.json()).toEqual({ seen: '%E0%A4%A' });
+  });
+
+  test('cookie value containing = keeps everything after the first =', async () => {
+    const res = await app().handle(
+      new Request('http://x/cookie/read', {
+        headers: { cookie: 'Session=a=b' },
+      })
+    );
+    expect(await res.json()).toEqual({ seen: 'a=b' });
+  });
 });

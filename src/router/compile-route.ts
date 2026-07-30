@@ -61,7 +61,7 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
     try {
       for (const hook of onRequest) {
         const out = await hook(ctx);
-        if (out instanceof Response) return out;
+        if (out instanceof Response) return withCookies(out);
       }
       for (const guard of guards) {
         if (!(await guard.canActivate(ctx))) throw new ForbiddenError();
