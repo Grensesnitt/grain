@@ -27,13 +27,14 @@ export function applyCorsHeaders(
   options: CorsOptions,
   req: Request,
   headers: Headers
-): void {
+): boolean {
   const allowed = resolveOrigin(options, req.headers.get('origin'));
-  if (allowed === null) return;
+  if (allowed === null) return false;
   headers.set('access-control-allow-origin', allowed);
   if (options.credentials)
     headers.set('access-control-allow-credentials', 'true');
   headers.append('vary', 'Origin');
+  return true;
 }
 
 export function corsResponseHook(options: CorsOptions): OnResponseHook {
@@ -47,16 +48,18 @@ export function preflightHandler(
 ): (req: Request) => Promise<Response> {
   return async (req) => {
     const headers = new Headers();
-    applyCorsHeaders(options, req, headers);
-    headers.set(
-      'access-control-allow-methods',
-      (options.methods ?? DEFAULT_METHODS).join(', ')
-    );
-    const requested = req.headers.get('access-control-request-headers');
-    const allowHeaders = options.allowedHeaders?.join(',') ?? requested;
-    if (allowHeaders) headers.set('access-control-allow-headers', allowHeaders);
-    if (options.maxAge !== undefined)
-      headers.set('access-control-max-age', String(options.maxAge));
+    if (applyCorsHeaders(options, req, headers)) {
+      headers.set(
+        'access-control-allow-methods',
+        (options.methods ?? DEFAULT_METHODS).join(', ')
+      );
+      const requested = req.headers.get('access-control-request-headers');
+      const allowHeaders = options.allowedHeaders?.join(', ') ?? requested;
+      if (allowHeaders)
+        headers.set('access-control-allow-headers', allowHeaders);
+      if (options.maxAge !== undefined)
+        headers.set('access-control-max-age', String(options.maxAge));
+    }
     return new Response(null, { status: 204, headers });
   };
 }

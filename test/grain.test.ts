@@ -686,6 +686,11 @@ describe('cors', () => {
     thing() {
       return { ok: true };
     }
+
+    @Get('/boom')
+    boom() {
+      throw new BadRequestError('nope');
+    }
   }
 
   const build = () =>
@@ -747,5 +752,47 @@ describe('cors', () => {
       })
     );
     expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  test('preflight from a disallowed origin carries no CORS headers', async () => {
+    const app = new Grain({
+      controllers: [CController],
+      cors: { origin: ['http://allowed.example'] },
+    });
+    const res = await app.handle(
+      new Request('http://x/c/thing', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://evil.example',
+          'access-control-request-method': 'GET',
+        },
+      })
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    expect(res.headers.get('access-control-allow-methods')).toBeNull();
+  });
+
+  test("origin '*' combined with credentials throws at construction", () => {
+    expect(
+      () =>
+        new Grain({
+          controllers: [],
+          cors: { origin: '*', credentials: true },
+        })
+    ).toThrow(/credentials/);
+  });
+
+  test('CORS headers land on error responses with a single Vary', async () => {
+    const res = await build().handle(
+      new Request('http://x/c/boom', {
+        headers: { origin: 'http://app.example' },
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'http://app.example'
+    );
+    expect(res.headers.get('vary')).toBe('Origin');
   });
 });

@@ -47,7 +47,12 @@ export class Grain {
 
   constructor(private readonly options: GrainOptions) {
     for (const p of options.providers ?? []) this.container.register(p);
-    if (options.cors) this.onResponseHooks.push(corsResponseHook(options.cors));
+    if (options.cors) {
+      if (options.cors.origin === '*' && options.cors.credentials) {
+        throw new Error("cors: origin '*' cannot be combined with credentials");
+      }
+      this.onResponseHooks.push(corsResponseHook(options.cors));
+    }
   }
 
   onRequest(hook: OnRequestHook): this {
