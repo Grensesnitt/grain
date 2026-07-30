@@ -10,7 +10,11 @@ export function swaggerHtml(title: string, jsonUrl: string): string {
     <div id="swagger-ui"></div>
     <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
     <script>
-      SwaggerUIBundle({ url: '${jsonUrl}', dom_id: '#swagger-ui' });
+      SwaggerUIBundle({
+        url: '${jsonUrl}',
+        dom_id: '#swagger-ui',
+        presets: [SwaggerUIBundle.presets.apis],
+      });
     </script>
   </body>
 </html>`;

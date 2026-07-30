@@ -110,11 +110,23 @@ export class Grain {
         this.options.docs.info.title,
         `${docsPath}/json`
       );
-      (routes[docsPath] ??= {}).GET = async () =>
-        new Response(html, {
-          headers: { 'content-type': 'text/html; charset=utf-8' },
-        });
-      (routes[`${docsPath}/json`] ??= {}).GET = async () => Response.json(doc);
+      const docsRoutes: [string, CompiledHandler][] = [
+        [
+          docsPath,
+          async () =>
+            new Response(html, {
+              headers: { 'content-type': 'text/html; charset=utf-8' },
+            }),
+        ],
+        [`${docsPath}/json`, async () => Response.json(doc)],
+      ];
+      for (const [path, handler] of docsRoutes) {
+        const handlers = (routes[path] ??= {});
+        if (handlers.GET) {
+          throw new Error(`Duplicate route: GET ${path} (docs)`);
+        }
+        handlers.GET = handler;
+      }
     }
     if (this.options.cors) {
       const preflight = preflightHandler(this.options.cors);

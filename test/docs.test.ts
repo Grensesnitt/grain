@@ -105,4 +105,23 @@ describe('openapi docs', () => {
     expect(doc.components.securitySchemes.bearer.scheme).toBe('bearer');
     expect(doc.security).toEqual([{ bearer: [] }]);
   });
+
+  test('throws when a controller route collides with the docs path', async () => {
+    @Controller('/docs')
+    class CollidingController {
+      @Get('/')
+      clash() {
+        return { meta: null, data: null };
+      }
+    }
+    const collide = new Grain({
+      controllers: [CollidingController],
+      docs: { info: { title: 'Test API' } },
+    });
+    // compile() runs lazily inside async handle(), so the boot error surfaces
+    // as a rejected promise rather than a sync throw.
+    await expect(collide.handle(new Request('http://x/docs'))).rejects.toThrow(
+      /Duplicate route/
+    );
+  });
 });
