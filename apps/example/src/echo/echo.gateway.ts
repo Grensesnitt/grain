@@ -1,6 +1,15 @@
-import { Gateway, Public, t, type WsClient, type WsGateway } from '@grensesnitt/grain';
+import {
+  Gateway,
+  Public,
+  t,
+  type WsClient,
+  type WsGateway,
+} from '@grensesnitt/grain';
 
-const EchoMessage = t.Object({ event: t.String() }, { additionalProperties: false });
+const EchoMessage = t.Object(
+  { event: t.String() },
+  { additionalProperties: false }
+);
 
 @Gateway('/echo', { message: EchoMessage })
 @Public()

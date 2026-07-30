@@ -110,7 +110,10 @@ describe('providers', () => {
       constructor(readonly config: Config) {}
     }
     const c = new Container();
-    c.register({ provide: Config, useValue: Object.assign(new Config(), { url: 'x' }) });
+    c.register({
+      provide: Config,
+      useValue: Object.assign(new Config(), { url: 'x' }),
+    });
     expect(c.resolve(Service).config.url).toBe('x');
   });
 
