@@ -118,14 +118,24 @@ export function joinPath(prefix: string, path: string): string {
   return joined.length > 1 ? joined.replace(/\/$/, '') : joined;
 }
 
+export function readClassGuardMeta(ctor: Ctor): {
+  guards: Ctor<Guard>[];
+  isPublic: boolean;
+} {
+  return {
+    guards: Reflect.getMetadata(GUARDS, ctor) ?? [],
+    isPublic: Reflect.getOwnMetadata(PUBLIC, ctor) === true,
+  };
+}
+
 export function readControllerMeta(ctor: Ctor): {
   prefix: string;
   routes: ResolvedRoute[];
 } {
   const prefix: string = Reflect.getMetadata(CONTROLLER_PREFIX, ctor) ?? '/';
   const raw: RawRoute[] = Reflect.getMetadata(ROUTES, ctor) ?? [];
-  const classGuards: Ctor<Guard>[] = Reflect.getMetadata(GUARDS, ctor) ?? [];
-  const classPublic = Reflect.getOwnMetadata(PUBLIC, ctor) === true;
+  const { guards: classGuards, isPublic: classPublic } =
+    readClassGuardMeta(ctor);
   const routes = raw.map((route) => {
     const params: ParamMeta[] =
       Reflect.getMetadata(PARAMS, ctor, route.handlerName) ?? [];

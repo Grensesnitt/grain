@@ -1,7 +1,9 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import {
+  Controller,
   Ctx,
   Gateway,
+  Get,
   Grain,
   Injectable,
   UnauthorizedError,
@@ -41,15 +43,27 @@ class EchoGateway implements WsGateway<{ event: string; data?: unknown }> {
   }
 }
 
-const app = new Grain({ controllers: [], gateways: [EchoGateway] });
+@Gateway('/boom', { message: Envelope })
+class ThrowingGateway implements WsGateway<{ event: string; data?: unknown }> {
+  message(client: WsClient, message: { event: string; data?: unknown }) {
+    if (message.event === 'boom') throw new Error('gateway exploded');
+    client.send({ event: 'echo', data: message });
+  }
+}
+
+const app = new Grain({
+  controllers: [],
+  gateways: [EchoGateway, ThrowingGateway],
+});
 const server = app.listen({ port: 0, hostname: '127.0.0.1' });
 afterAll(() => app.stop());
 
 function connect(
-  query: string
+  query: string,
+  path = '/ws'
 ): Promise<{ ws: WebSocket; next: () => Promise<any> }> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${server.port}/ws${query}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${server.port}${path}${query}`);
     const queue: any[] = [];
     const waiters: ((m: any) => void)[] = [];
     ws.onmessage = (e) => {
@@ -105,5 +119,46 @@ describe('websocket gateways', () => {
     const offline = new Grain({ controllers: [], gateways: [EchoGateway] });
     const res = await offline.handle(new Request('http://x/ws?token=good'));
     expect(res.status).toBe(426);
+  });
+
+  test('a throwing message handler sends a 500 envelope and keeps the socket usable', async () => {
+    const { ws, next } = await connect('', '/boom');
+    // The dispatch below intentionally throws inside the gateway; the handler
+    // logs one expected "grain ws message error" line to stderr.
+    ws.send(JSON.stringify({ event: 'boom' }));
+    expect(await next()).toEqual({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'Internal Server Error',
+    });
+    ws.send(JSON.stringify({ event: 'ping', data: 2 }));
+    expect(await next()).toEqual({
+      event: 'echo',
+      data: { event: 'ping', data: 2 },
+    });
+    ws.close();
+  });
+
+  test('a gateway path colliding with a controller GET route throws at boot', async () => {
+    @Controller('/')
+    class ClashController {
+      @Get('/clash')
+      clash() {
+        return { ok: true };
+      }
+    }
+
+    @Gateway('/clash')
+    class ClashGateway implements WsGateway {}
+
+    const collide = new Grain({
+      controllers: [ClashController],
+      gateways: [ClashGateway],
+    });
+    // compile() runs lazily inside async handle(), so the boot error surfaces
+    // as a rejected promise rather than a sync throw.
+    await expect(collide.handle(new Request('http://x/clash'))).rejects.toThrow(
+      /Duplicate route/
+    );
   });
 });

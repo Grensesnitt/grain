@@ -21,9 +21,13 @@ function makeClient(ws: ServerWebSocket<WsData>): WsClient {
 
 export function websocketHandler(): WebSocketHandler<WsData> {
   return {
-    open(ws) {
+    async open(ws) {
       ws.data.client = makeClient(ws);
-      void ws.data.gateway.open?.(ws.data.client);
+      try {
+        await ws.data.gateway.open?.(ws.data.client);
+      } catch (err) {
+        console.error('grain ws open error', err);
+      }
     },
     async message(ws, raw) {
       const client = ws.data.client!;
@@ -54,10 +58,24 @@ export function websocketHandler(): WebSocketHandler<WsData> {
           throw err;
         }
       }
-      await ws.data.gateway.message?.(client, parsed);
+      try {
+        await ws.data.gateway.message?.(client, parsed);
+      } catch (err) {
+        console.error('grain ws message error', err);
+        client.send({
+          statusCode: 500,
+          error: 'Internal Server Error',
+          message: 'Internal Server Error',
+        });
+      }
     },
-    close(ws) {
-      if (ws.data.client) void ws.data.gateway.close?.(ws.data.client);
+    async close(ws) {
+      if (!ws.data.client) return;
+      try {
+        await ws.data.gateway.close?.(ws.data.client);
+      } catch (err) {
+        console.error('grain ws close error', err);
+      }
     },
   };
 }

@@ -12,7 +12,7 @@ import type { Provider } from './di/provider';
 import { Container } from './di/container';
 import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
 import { readGatewayMeta } from './decorators/gateway';
-import { GUARDS, PUBLIC, readControllerMeta } from './decorators/metadata';
+import { readClassGuardMeta, readControllerMeta } from './decorators/metadata';
 import { buildOpenApiDoc, type DocsOptions } from './docs/openapi';
 import { swaggerHtml } from './docs/ui';
 import { errorToResponse } from './errors/error-response';
@@ -116,9 +116,8 @@ export class Grain {
       const validate = meta.message
         ? compileValidator(meta.message, 'body')
         : null;
-      const classGuards: Ctor<Guard>[] =
-        Reflect.getMetadata(GUARDS, gatewayClass) ?? [];
-      const isPublic = Reflect.getOwnMetadata(PUBLIC, gatewayClass) === true;
+      const { guards: classGuards, isPublic } =
+        readClassGuardMeta(gatewayClass);
       const guards = [
         ...(isPublic ? [] : globalGuards),
         ...classGuards.map((g) => this.container.resolve(g) as Guard),
