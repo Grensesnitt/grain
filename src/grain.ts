@@ -109,11 +109,13 @@ export class Grain {
   }
 
   private async finalize(res: Response, req: Request): Promise<Response> {
-    const ctx = createCtx(req, this.server);
+    const setCookies: string[] = [];
+    const ctx = createCtx(req, this.server, setCookies);
     for (const hook of this.onResponseHooks) {
       const out = await hook(res, ctx);
       if (out instanceof Response) res = out;
     }
+    for (const cookie of setCookies) res.headers.append('Set-Cookie', cookie);
     return res;
   }
 

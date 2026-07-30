@@ -654,4 +654,27 @@ describe('onResponse', () => {
     expect(res.status).toBe(418);
     expect(await res.text()).toBe('replaced');
   });
+
+  test('runs on responses returned by an onRequest short-circuit', async () => {
+    const app = new Grain({ controllers: [RController] })
+      .onRequest(() => new Response('cut', { status: 418 }))
+      .onResponse((res) => {
+        res.headers.set('x-marker', 'on');
+      });
+    const res = await app.handle(new Request('http://x/r/ok'));
+    expect(res.status).toBe(418);
+    expect(res.headers.get('x-marker')).toBe('on');
+  });
+
+  test('cookies set inside an onResponse hook land on the response', async () => {
+    const app = new Grain({ controllers: [RController] }).onResponse(
+      (_res, ctx) => {
+        ctx.setCookie('Late', 'yes', { path: '/' });
+      }
+    );
+    const res = await app.handle(new Request('http://x/r/ok'));
+    const header = res.headers.get('set-cookie')!;
+    expect(header).toContain('Late=yes');
+    expect(header).toContain('Path=/');
+  });
 });

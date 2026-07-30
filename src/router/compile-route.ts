@@ -80,7 +80,7 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
       for (const hook of onRequest) {
         const out = await hook(ctx);
         if (out instanceof Response)
-          return applyOnResponse(withCookies(out), ctx);
+          return withCookies(await applyOnResponse(out, ctx));
       }
       for (const guard of guards) {
         if (!(await guard.canActivate(ctx))) throw new ForbiddenError();
@@ -99,14 +99,16 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
         ctx.body = validateBody ? validateBody(raw) : raw;
       }
       const result = await fn(...extractors.map((extract) => extract(ctx)));
-      return applyOnResponse(withCookies(toResponse(result, httpCode)), ctx);
+      return withCookies(
+        await applyOnResponse(toResponse(result, httpCode), ctx)
+      );
     } catch (err) {
       for (const hook of onError) {
         const out = await hook(err, ctx);
         if (out instanceof Response)
-          return applyOnResponse(withCookies(out), ctx);
+          return withCookies(await applyOnResponse(out, ctx));
       }
-      return applyOnResponse(withCookies(errorToResponse(err)), ctx);
+      return withCookies(await applyOnResponse(errorToResponse(err), ctx));
     }
   };
 }
