@@ -1,11 +1,9 @@
 {
-  "name": "grensesnitt-framework",
+  "name": "@grensesnitt/grain",
+  "version": "0.2.0",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*",
-    "bench"
-  ],
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
     "test": "bun test",
     "check": "tsc --noEmit",
@@ -13,6 +11,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint ."
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

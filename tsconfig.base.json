@@ -10,6 +10,9 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "paths": {
+      "@grensesnitt/grain": ["./src/index.ts"]
+    }
   }
 }
