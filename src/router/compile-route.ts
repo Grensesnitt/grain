@@ -1,3 +1,4 @@
+import type { Server } from 'bun';
 import { BadRequestError, ForbiddenError } from '../errors/http-error';
 import { errorToResponse } from '../errors/error-response';
 import { compileValidator } from '../validation/compile';
@@ -7,7 +8,10 @@ import { createCtx } from './context';
 import { buildExtractors } from './extractors';
 import { toResponse } from './respond';
 
-export type CompiledHandler = (req: Request) => Promise<Response>;
+export type CompiledHandler = (
+  req: Request,
+  server?: Server<undefined> | null
+) => Promise<Response>;
 
 export interface CompileRouteInput {
   instance: object;
@@ -47,8 +51,13 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
     validateBody !== null || paramMetas.some((p) => p.kind === 'body');
   const extractors = buildExtractors(paramMetas, fn.length);
 
-  return async (req) => {
-    const ctx = createCtx(req);
+  return async (req, server = null) => {
+    const setCookies: string[] = [];
+    const ctx = createCtx(req, server, setCookies);
+    const withCookies = (res: Response): Response => {
+      for (const cookie of setCookies) res.headers.append('Set-Cookie', cookie);
+      return res;
+    };
     try {
       for (const hook of onRequest) {
         const out = await hook(ctx);
@@ -71,13 +80,13 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
         ctx.body = validateBody ? validateBody(raw) : raw;
       }
       const result = await fn(...extractors.map((extract) => extract(ctx)));
-      return toResponse(result, httpCode);
+      return withCookies(toResponse(result, httpCode));
     } catch (err) {
       for (const hook of onError) {
         const out = await hook(err, ctx);
-        if (out instanceof Response) return out;
+        if (out instanceof Response) return withCookies(out);
       }
-      return errorToResponse(err);
+      return withCookies(errorToResponse(err));
     }
   };
 }

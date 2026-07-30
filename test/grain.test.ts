@@ -1,6 +1,7 @@
 import 'reflect-metadata';
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import {
+  BadRequestError,
   Body,
   Controller,
   Ctx,
@@ -493,5 +494,83 @@ test('interface-typed body stays raw (no validation)', async () => {
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({
     received: { totally: 'unvalidated', extra: 1 },
+  });
+});
+
+describe('cookies and server ctx', () => {
+  @Controller('/cookie')
+  class CookieController {
+    @Get('/read')
+    read(@Ctx() ctx: Ctx) {
+      return { seen: ctx.cookies['Session'] ?? null };
+    }
+
+    @Get('/set')
+    set(@Ctx() ctx: Ctx) {
+      ctx.setCookie('Session', 'abc123', {
+        path: '/api',
+        httpOnly: true,
+        sameSite: 'strict',
+        expires: new Date('2027-01-01T00:00:00Z'),
+      });
+      return { ok: true };
+    }
+
+    @Get('/boom')
+    boom(@Ctx() ctx: Ctx) {
+      ctx.setCookie('Session', '', { path: '/api', expires: new Date(0) });
+      throw new BadRequestError('after cookie');
+    }
+  }
+
+  const app = () => new Grain({ controllers: [CookieController] });
+
+  test('ctx.cookies parses the Cookie header', async () => {
+    const res = await app().handle(
+      new Request('http://x/cookie/read', {
+        headers: { cookie: 'Session=abc123; Other=1' },
+      })
+    );
+    expect(await res.json()).toEqual({ seen: 'abc123' });
+  });
+
+  test('setCookie serializes attributes onto the response', async () => {
+    const res = await app().handle(new Request('http://x/cookie/set'));
+    const header = res.headers.get('set-cookie')!;
+    expect(header).toContain('Session=abc123');
+    expect(header).toContain('Path=/api');
+    expect(header).toContain('HttpOnly');
+    expect(header).toContain('SameSite=Strict');
+    expect(header).toContain('Expires=');
+  });
+
+  test('cookies set before a thrown error still reach the error response', async () => {
+    const res = await app().handle(new Request('http://x/cookie/boom'));
+    expect(res.status).toBe(400);
+    expect(res.headers.get('set-cookie')).toContain('Session=');
+  });
+
+  test('ctx.server is null under handle()', async () => {
+    @Controller('/srv')
+    class SrvController {
+      @Get('/')
+      srv(@Ctx() ctx: Ctx) {
+        return { hasServer: ctx.server !== null };
+      }
+    }
+    const res = await new Grain({ controllers: [SrvController] }).handle(
+      new Request('http://x/srv')
+    );
+    expect(await res.json()).toEqual({ hasServer: false });
+  });
+
+  test('listen accepts {port, hostname}', async () => {
+    const srv = app().listen({ port: 0, hostname: '127.0.0.1' });
+    try {
+      const res = await fetch(`http://127.0.0.1:${srv.port}/cookie/read`);
+      expect(res.status).toBe(200);
+    } finally {
+      srv.stop(true);
+    }
   });
 });

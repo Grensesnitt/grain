@@ -30,6 +30,12 @@ export { Dto } from './validation/dto';
 // `export ... from` re-export statements (TS2300 "Duplicate identifier"), so
 // the type half is declared locally and merges with the value export instead.
 export interface Ctx extends CtxShape {}
-export type { Guard, HttpMethod, OnErrorHook, OnRequestHook } from './types';
+export type {
+  CookieOptions,
+  Guard,
+  HttpMethod,
+  OnErrorHook,
+  OnRequestHook,
+} from './types';
 export { Type as t } from '@sinclair/typebox';
 export type { Static, TSchema } from '@sinclair/typebox';

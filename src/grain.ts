@@ -96,13 +96,20 @@ export class Grain {
     const handler = matched?.handlers[req.method as HttpMethod];
     if (!matched || !handler) return notFound();
     (req as any).params = matched.params;
-    return handler(req);
+    return handler(req, this.server);
   }
 
-  listen(port = 3000): Server<undefined> {
+  listen(
+    portOrOptions: number | { port?: number; hostname?: string } = 3000
+  ): Server<undefined> {
     const { routes } = this.compile();
+    const options =
+      typeof portOrOptions === 'number'
+        ? { port: portOrOptions }
+        : portOrOptions;
     this.server = Bun.serve({
-      port,
+      port: options.port ?? 3000,
+      hostname: options.hostname,
       routes,
       fetch: () => notFound(),
     });
