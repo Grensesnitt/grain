@@ -11,6 +11,8 @@ import type { Provider } from './di/provider';
 import { Container } from './di/container';
 import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
 import { readControllerMeta } from './decorators/metadata';
+import { buildOpenApiDoc, type DocsOptions } from './docs/openapi';
+import { swaggerHtml } from './docs/ui';
 import { compileRoute, type CompiledHandler } from './router/compile-route';
 import { createCtx } from './router/context';
 import { buildMatcher, type MatcherEntry } from './router/matcher';
@@ -20,6 +22,7 @@ export interface GrainOptions {
   guards?: Ctor<Guard>[];
   providers?: Provider[];
   cors?: CorsOptions;
+  docs?: DocsOptions;
 }
 
 interface Compiled {
@@ -99,6 +102,19 @@ export class Grain {
           onResponse: this.onResponseHooks,
         });
       }
+    }
+    if (this.options.docs) {
+      const docsPath = this.options.docs.path ?? '/docs';
+      const doc = buildOpenApiDoc(this.options.controllers, this.options.docs);
+      const html = swaggerHtml(
+        this.options.docs.info.title,
+        `${docsPath}/json`
+      );
+      (routes[docsPath] ??= {}).GET = async () =>
+        new Response(html, {
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      (routes[`${docsPath}/json`] ??= {}).GET = async () => Response.json(doc);
     }
     if (this.options.cors) {
       const preflight = preflightHandler(this.options.cors);

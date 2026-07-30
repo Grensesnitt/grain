@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Type, type TSchema } from '@sinclair/typebox';
 import type { Ctor, Guard, HttpMethod } from '../types';
 import { dtoSchema } from '../validation/dto';
+import { DOCS, type RouteDocs } from './docs';
 
 export const CONTROLLER_PREFIX = Symbol.for('grain:controller-prefix');
 export const ROUTES = Symbol.for('grain:routes');
@@ -34,6 +35,7 @@ export interface ResolvedRoute extends RawRoute {
   schemas: RouteSchemas;
   guards: Ctor<Guard>[];
   isPublic: boolean;
+  docs?: RouteDocs;
 }
 
 function primitiveSchema(type: unknown): TSchema | null {
@@ -150,6 +152,7 @@ export function readControllerMeta(ctor: Ctor): {
       isPublic:
         classPublic ||
         Reflect.getOwnMetadata(PUBLIC, ctor, route.handlerName) === true,
+      docs: Reflect.getMetadata(DOCS, ctor, route.handlerName),
     };
   });
   return { prefix: joinPath(prefix, ''), routes };

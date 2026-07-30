@@ -9,6 +9,7 @@ export type { CorsOptions } from './cors';
 export { Controller } from './decorators/controller';
 export { Delete, Get, Patch, Post, Put } from './decorators/route';
 export { Body, Ctx, Param, Query } from './decorators/params';
+export { Docs } from './decorators/docs';
 export { HttpCode } from './decorators/http-code';
 export { Public } from './decorators/public';
 export { UseGuard } from './decorators/use-guard';
@@ -24,6 +25,7 @@ export {
   ValidationError,
 } from './errors/http-error';
 export { Dto } from './validation/dto';
+export type { DocsOptions } from './docs/openapi';
 // The `Ctx` decorator (value, re-exported above from './decorators/params')
 // and the `Ctx` interface (type, below) intentionally share the identifier so
 // `@Ctx() ctx: Ctx` works with a single import. TypeScript cannot merge a
