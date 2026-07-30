@@ -3,7 +3,7 @@ import type { CompiledHandler } from './compile-route';
 
 export interface MatcherEntry {
   path: string;
-  handlers: Partial<Record<HttpMethod, CompiledHandler>>;
+  handlers: Partial<Record<HttpMethod | 'OPTIONS', CompiledHandler>>;
 }
 
 interface CompiledEntry extends MatcherEntry {

@@ -5,6 +5,7 @@ import type { Ctx as CtxShape } from './types';
 export const GRAIN_VERSION = '0.2.0';
 
 export { Grain, type GrainOptions } from './grain';
+export type { CorsOptions } from './cors';
 export { Controller } from './decorators/controller';
 export { Delete, Get, Patch, Post, Put } from './decorators/route';
 export { Body, Ctx, Param, Query } from './decorators/params';

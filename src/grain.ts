@@ -9,6 +9,7 @@ import type {
 } from './types';
 import type { Provider } from './di/provider';
 import { Container } from './di/container';
+import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
 import { readControllerMeta } from './decorators/metadata';
 import { compileRoute, type CompiledHandler } from './router/compile-route';
 import { createCtx } from './router/context';
@@ -18,10 +19,14 @@ export interface GrainOptions {
   controllers: Ctor[];
   guards?: Ctor<Guard>[];
   providers?: Provider[];
+  cors?: CorsOptions;
 }
 
 interface Compiled {
-  routes: Record<string, Partial<Record<HttpMethod, CompiledHandler>>>;
+  routes: Record<
+    string,
+    Partial<Record<HttpMethod | 'OPTIONS', CompiledHandler>>
+  >;
   match: ReturnType<typeof buildMatcher>;
 }
 
@@ -42,6 +47,7 @@ export class Grain {
 
   constructor(private readonly options: GrainOptions) {
     for (const p of options.providers ?? []) this.container.register(p);
+    if (options.cors) this.onResponseHooks.push(corsResponseHook(options.cors));
   }
 
   onRequest(hook: OnRequestHook): this {
@@ -87,6 +93,12 @@ export class Grain {
           onError: this.onErrorHooks,
           onResponse: this.onResponseHooks,
         });
+      }
+    }
+    if (this.options.cors) {
+      const preflight = preflightHandler(this.options.cors);
+      for (const handlers of Object.values(routes)) {
+        handlers['OPTIONS'] ??= preflight;
       }
     }
     const entries: MatcherEntry[] = Object.entries(routes).map(

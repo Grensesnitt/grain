@@ -678,3 +678,74 @@ describe('onResponse', () => {
     expect(header).toContain('Path=/');
   });
 });
+
+describe('cors', () => {
+  @Controller('/c')
+  class CController {
+    @Get('/thing')
+    thing() {
+      return { ok: true };
+    }
+  }
+
+  const build = () =>
+    new Grain({
+      controllers: [CController],
+      cors: { origin: true, credentials: true },
+    });
+
+  test('reflects Origin with credentials on normal responses', async () => {
+    const res = await build().handle(
+      new Request('http://x/c/thing', {
+        headers: { origin: 'http://app.example' },
+      })
+    );
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'http://app.example'
+    );
+    expect(res.headers.get('access-control-allow-credentials')).toBe('true');
+    expect(res.headers.get('vary')).toContain('Origin');
+  });
+
+  test('answers preflight for a registered path', async () => {
+    const res = await build().handle(
+      new Request('http://x/c/thing', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://app.example',
+          'access-control-request-method': 'GET',
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      })
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'http://app.example'
+    );
+    expect(res.headers.get('access-control-allow-methods')).toContain('GET');
+    expect(res.headers.get('access-control-allow-headers')).toBe(
+      'authorization,content-type'
+    );
+  });
+
+  test('CORS headers also land on 404s', async () => {
+    const res = await build().handle(
+      new Request('http://x/nope', {
+        headers: { origin: 'http://app.example' },
+      })
+    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'http://app.example'
+    );
+  });
+
+  test('no cors option → no CORS headers', async () => {
+    const res = await new Grain({ controllers: [CController] }).handle(
+      new Request('http://x/c/thing', {
+        headers: { origin: 'http://app.example' },
+      })
+    );
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
