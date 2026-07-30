@@ -3,7 +3,13 @@ import { BadRequestError, ForbiddenError } from '../errors/http-error';
 import { errorToResponse } from '../errors/error-response';
 import { compileValidator } from '../validation/compile';
 import type { ParamMeta, RouteSchemas } from '../decorators/metadata';
-import type { Guard, OnErrorHook, OnRequestHook } from '../types';
+import type {
+  Ctx,
+  Guard,
+  OnErrorHook,
+  OnRequestHook,
+  OnResponseHook,
+} from '../types';
 import { createCtx } from './context';
 import { buildExtractors } from './extractors';
 import { toResponse } from './respond';
@@ -22,6 +28,7 @@ export interface CompileRouteInput {
   guards: Guard[];
   onRequest: OnRequestHook[];
   onError: OnErrorHook[];
+  onResponse: OnResponseHook[];
 }
 
 export function compileRoute(input: CompileRouteInput): CompiledHandler {
@@ -34,6 +41,7 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
     guards,
     onRequest,
     onError,
+    onResponse,
   } = input;
   const fn = (instance as Record<string, (...args: unknown[]) => unknown>)[
     handlerName
@@ -58,10 +66,21 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
       for (const cookie of setCookies) res.headers.append('Set-Cookie', cookie);
       return res;
     };
+    const applyOnResponse = async (
+      res: Response,
+      ctx: Ctx
+    ): Promise<Response> => {
+      for (const hook of onResponse) {
+        const out = await hook(res, ctx);
+        if (out instanceof Response) res = out;
+      }
+      return res;
+    };
     try {
       for (const hook of onRequest) {
         const out = await hook(ctx);
-        if (out instanceof Response) return withCookies(out);
+        if (out instanceof Response)
+          return applyOnResponse(withCookies(out), ctx);
       }
       for (const guard of guards) {
         if (!(await guard.canActivate(ctx))) throw new ForbiddenError();
@@ -80,13 +99,14 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
         ctx.body = validateBody ? validateBody(raw) : raw;
       }
       const result = await fn(...extractors.map((extract) => extract(ctx)));
-      return withCookies(toResponse(result, httpCode));
+      return applyOnResponse(withCookies(toResponse(result, httpCode)), ctx);
     } catch (err) {
       for (const hook of onError) {
         const out = await hook(err, ctx);
-        if (out instanceof Response) return withCookies(out);
+        if (out instanceof Response)
+          return applyOnResponse(withCookies(out), ctx);
       }
-      return withCookies(errorToResponse(err));
+      return applyOnResponse(withCookies(errorToResponse(err)), ctx);
     }
   };
 }

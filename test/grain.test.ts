@@ -609,3 +609,49 @@ describe('cookies and server ctx', () => {
     expect(await res.json()).toEqual({ seen: 'a=b' });
   });
 });
+
+describe('onResponse', () => {
+  @Controller('/r')
+  class RController {
+    @Get('/ok')
+    ok() {
+      return { ok: true };
+    }
+
+    @Get('/boom')
+    boom() {
+      throw new BadRequestError('nope');
+    }
+  }
+
+  const build = () =>
+    new Grain({ controllers: [RController] }).onResponse((res) => {
+      res.headers.set('x-marker', 'on');
+    });
+
+  test('runs on success responses', async () => {
+    const res = await build().handle(new Request('http://x/r/ok'));
+    expect(res.headers.get('x-marker')).toBe('on');
+  });
+
+  test('runs on error responses', async () => {
+    const res = await build().handle(new Request('http://x/r/boom'));
+    expect(res.status).toBe(400);
+    expect(res.headers.get('x-marker')).toBe('on');
+  });
+
+  test('runs on 404 responses', async () => {
+    const res = await build().handle(new Request('http://x/missing'));
+    expect(res.status).toBe(404);
+    expect(res.headers.get('x-marker')).toBe('on');
+  });
+
+  test('a hook returning a Response replaces the response', async () => {
+    const app = new Grain({ controllers: [RController] }).onResponse(
+      () => new Response('replaced', { status: 418 })
+    );
+    const res = await app.handle(new Request('http://x/r/ok'));
+    expect(res.status).toBe(418);
+    expect(await res.text()).toBe('replaced');
+  });
+});

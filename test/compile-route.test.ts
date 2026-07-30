@@ -39,6 +39,7 @@ function makeRoute(overrides: Partial<CompileRouteInput> = {}) {
     guards: [],
     onRequest: [],
     onError: [],
+    onResponse: [],
     ...overrides,
   });
 }

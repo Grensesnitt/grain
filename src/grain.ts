@@ -5,11 +5,13 @@ import type {
   HttpMethod,
   OnErrorHook,
   OnRequestHook,
+  OnResponseHook,
 } from './types';
 import type { Provider } from './di/provider';
 import { Container } from './di/container';
 import { readControllerMeta } from './decorators/metadata';
 import { compileRoute, type CompiledHandler } from './router/compile-route';
+import { createCtx } from './router/context';
 import { buildMatcher, type MatcherEntry } from './router/matcher';
 
 export interface GrainOptions {
@@ -34,6 +36,7 @@ export class Grain {
   private readonly container = new Container();
   private readonly onRequestHooks: OnRequestHook[] = [];
   private readonly onErrorHooks: OnErrorHook[] = [];
+  private readonly onResponseHooks: OnResponseHook[] = [];
   private compiled: Compiled | null = null;
   private server: Server<undefined> | null = null;
 
@@ -48,6 +51,11 @@ export class Grain {
 
   onError(hook: OnErrorHook): this {
     this.onErrorHooks.push(hook);
+    return this;
+  }
+
+  onResponse(hook: OnResponseHook): this {
+    this.onResponseHooks.push(hook);
     return this;
   }
 
@@ -77,6 +85,7 @@ export class Grain {
           ],
           onRequest: this.onRequestHooks,
           onError: this.onErrorHooks,
+          onResponse: this.onResponseHooks,
         });
       }
     }
@@ -94,9 +103,18 @@ export class Grain {
     const { match } = this.compile();
     const matched = match(new URL(req.url).pathname);
     const handler = matched?.handlers[req.method as HttpMethod];
-    if (!matched || !handler) return notFound();
+    if (!matched || !handler) return this.finalize(notFound(), req);
     (req as any).params = matched.params;
     return handler(req, this.server);
+  }
+
+  private async finalize(res: Response, req: Request): Promise<Response> {
+    const ctx = createCtx(req, this.server);
+    for (const hook of this.onResponseHooks) {
+      const out = await hook(res, ctx);
+      if (out instanceof Response) res = out;
+    }
+    return res;
   }
 
   listen(
@@ -111,7 +129,7 @@ export class Grain {
       port: options.port ?? 3000,
       hostname: options.hostname,
       routes,
-      fetch: () => notFound(),
+      fetch: (req) => this.finalize(notFound(), req),
     });
     return this.server;
   }

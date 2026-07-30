@@ -36,6 +36,7 @@ export type {
   HttpMethod,
   OnErrorHook,
   OnRequestHook,
+  OnResponseHook,
 } from './types';
 export { Type as t } from '@sinclair/typebox';
 export type { Static, TSchema } from '@sinclair/typebox';

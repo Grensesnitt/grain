@@ -36,3 +36,7 @@ export type OnErrorHook = (
   err: unknown,
   ctx: Ctx
 ) => void | Response | Promise<void | Response>;
+export type OnResponseHook = (
+  res: Response,
+  ctx: Ctx
+) => void | Response | Promise<void | Response>;
