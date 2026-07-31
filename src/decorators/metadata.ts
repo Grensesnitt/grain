@@ -3,6 +3,7 @@ import { Type, type TSchema } from '@sinclair/typebox';
 import type { Ctor, Guard, HttpMethod } from '../types';
 import { dtoSchema } from '../validation/dto';
 import { DOCS, type RouteDocs } from './docs';
+import { RETURNS, type ReturnsMeta } from './returns';
 
 export const CONTROLLER_PREFIX = Symbol.for('grain:controller-prefix');
 export const ROUTES = Symbol.for('grain:routes');
@@ -36,6 +37,7 @@ export interface ResolvedRoute extends RawRoute {
   guards: Ctor<Guard>[];
   isPublic: boolean;
   docs?: RouteDocs;
+  returns?: ReturnsMeta;
 }
 
 function primitiveSchema(type: unknown): TSchema | null {
@@ -149,10 +151,30 @@ export function readControllerMeta(ctor: Ctor): {
         route.handlerName
       ) ?? [];
     const path = joinPath(prefix, route.path);
+    const httpCode: number | undefined = Reflect.getMetadata(
+      HTTP_CODE,
+      ctor,
+      route.handlerName
+    );
+    const returns: ReturnsMeta | undefined = Reflect.getMetadata(
+      RETURNS,
+      ctor,
+      route.handlerName
+    );
+    if (
+      returns?.code !== undefined &&
+      httpCode !== undefined &&
+      returns.code !== httpCode
+    ) {
+      throw new Error(
+        `Conflicting status codes for ${ctor.name}.${route.handlerName}: ` +
+          `@HttpCode(${httpCode}) vs @Returns(${returns.code})`
+      );
+    }
     return {
       ...route,
       path,
-      httpCode: Reflect.getMetadata(HTTP_CODE, ctor, route.handlerName),
+      httpCode: returns?.code ?? httpCode,
       params: sortedParams,
       schemas: deriveSchemas(sortedParams, paramTypes, {
         path,
@@ -163,6 +185,7 @@ export function readControllerMeta(ctor: Ctor): {
         classPublic ||
         Reflect.getOwnMetadata(PUBLIC, ctor, route.handlerName) === true,
       docs: Reflect.getMetadata(DOCS, ctor, route.handlerName),
+      returns,
     };
   });
   return { prefix: joinPath(prefix, ''), routes };

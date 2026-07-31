@@ -25,3 +25,11 @@ export function compileValidator(
     throw new ValidationError(`${source} validation failed`, details);
   };
 }
+
+// Response contract cleaner: strips properties not declared in the schema,
+// recursively. Clone first — Value.Clean mutates, and handlers may share
+// their result objects with side channels (queues, event fanout) that
+// serialize after the response is built.
+export function compileCleaner(schema: TSchema): (value: unknown) => unknown {
+  return (value) => Value.Clean(schema, Value.Clone(value));
+}

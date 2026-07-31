@@ -1,8 +1,9 @@
 import type { Server } from 'bun';
 import { BadRequestError, ForbiddenError } from '../errors/http-error';
 import { errorToResponse } from '../errors/error-response';
-import { compileValidator } from '../validation/compile';
+import { compileCleaner, compileValidator } from '../validation/compile';
 import type { ParamMeta, RouteSchemas } from '../decorators/metadata';
+import type { ReturnsMeta } from '../decorators/returns';
 import type {
   Ctx,
   Guard,
@@ -29,6 +30,7 @@ export interface CompileRouteInput {
   onRequest: OnRequestHook[];
   onError: OnErrorHook[];
   onResponse: OnResponseHook[];
+  returns?: ReturnsMeta;
 }
 
 export function compileRoute(input: CompileRouteInput): CompiledHandler {
@@ -42,6 +44,7 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
     onRequest,
     onError,
     onResponse,
+    returns,
   } = input;
   const fn = (instance as Record<string, (...args: unknown[]) => unknown>)[
     handlerName
@@ -55,6 +58,7 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
   const validateParams = schemas.params
     ? compileValidator(schemas.params, 'params')
     : null;
+  const clean = returns ? compileCleaner(returns.schema) : null;
   const needsBody =
     validateBody !== null || paramMetas.some((p) => p.kind === 'body');
   const extractors = buildExtractors(paramMetas, fn.length);
@@ -99,8 +103,12 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
         ctx.body = validateBody ? validateBody(raw) : raw;
       }
       const result = await fn(...extractors.map((extract) => extract(ctx)));
+      const cleaned =
+        clean && result !== undefined && !(result instanceof Response)
+          ? clean(result)
+          : result;
       return withCookies(
-        await applyOnResponse(toResponse(result, httpCode), ctx)
+        await applyOnResponse(toResponse(cleaned, httpCode), ctx)
       );
     } catch (err) {
       for (const hook of onError) {

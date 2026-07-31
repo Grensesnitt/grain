@@ -119,6 +119,7 @@ export class Grain {
           onRequest: this.onRequestHooks,
           onError: this.onErrorHooks,
           onResponse: this.onResponseHooks,
+          returns: meta.returns,
         });
       }
     }

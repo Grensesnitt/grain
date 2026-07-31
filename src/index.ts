@@ -13,6 +13,7 @@ export { Docs } from './decorators/docs';
 export { Gateway } from './decorators/gateway';
 export { HttpCode } from './decorators/http-code';
 export { Public } from './decorators/public';
+export { Returns } from './decorators/returns';
 export { UseGuard } from './decorators/use-guard';
 export { Injectable } from './di/injectable';
 export type { Provider } from './di/provider';
