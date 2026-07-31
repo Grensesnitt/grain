@@ -46,6 +46,12 @@ class ThingsController {
     return { meta: null, data: id };
   }
 
+  @Get('/latest')
+  @Returns(ThingEnvelope)
+  latest() {
+    return { meta: null, data: { name: 'latest' } };
+  }
+
   @Post('/')
   @Returns(201, ThingEnvelope)
   @Public()
@@ -95,6 +101,10 @@ describe('openapi docs', () => {
       post.responses['201'].content['application/json'].schema
     ).toBeDefined();
     expect(post.security).toEqual([]); // @Public route
+    const latest = doc.paths['/things/latest'].get;
+    expect(
+      latest.responses['200'].content['application/json'].schema
+    ).toBeDefined(); // code-less @Returns keys off the 200 default
     expect(post.tags).toEqual(['things']);
     const list = doc.paths['/things'].get;
     expect(list.summary).toBe('List things');
@@ -190,3 +200,11 @@ describe('openapi docs', () => {
     );
   });
 });
+
+// Type-level pin, never invoked at runtime: `response` was removed from
+// RouteDocs in v0.4.0 in favor of @Returns. If someone re-adds it, this
+// stops compiling and `bun run check` fails.
+function _docsResponseFieldStaysRemoved() {
+  // @ts-expect-error response was removed from RouteDocs in v0.4.0
+  Docs({ tags: ['x'], response: ThingEnvelope });
+}
