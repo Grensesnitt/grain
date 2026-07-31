@@ -208,3 +208,70 @@ function _docsResponseFieldStaysRemoved() {
   // @ts-expect-error response was removed from RouteDocs in v0.4.0
   Docs({ tags: ['x'], response: ThingEnvelope });
 }
+
+describe('class-level @Docs', () => {
+  const Envelope = t.Object({ meta: t.Null(), data: t.String() });
+
+  @Controller('/cls')
+  @Docs({ tags: ['cls'] })
+  class ClsController {
+    @Get('/plain')
+    @Returns(Envelope)
+    plain() {
+      return { meta: null, data: 'a' };
+    }
+
+    @Get('/summarized')
+    @Docs({ summary: 'With summary' })
+    summarized() {
+      return { meta: null, data: 'b' };
+    }
+
+    @Get('/overridden')
+    @Docs({ tags: ['special'] })
+    overridden() {
+      return { meta: null, data: 'c' };
+    }
+  }
+
+  const doc = async () => {
+    const res = await new Grain({
+      controllers: [ClsController],
+      docs: { info: { title: 'Cls', version: '1.0' } },
+    }).handle(new Request('http://x/docs/json'));
+    return (await res.json()) as any;
+  };
+
+  test('routes without route-level @Docs inherit class tags', async () => {
+    expect((await doc()).paths['/cls/plain'].get.tags).toEqual(['cls']);
+  });
+
+  test('route-level summary merges with inherited class tags', async () => {
+    const op = (await doc()).paths['/cls/summarized'].get;
+    expect(op.tags).toEqual(['cls']);
+    expect(op.summary).toBe('With summary');
+  });
+
+  test('route-level tags replace class tags', async () => {
+    expect((await doc()).paths['/cls/overridden'].get.tags).toEqual([
+      'special',
+    ]);
+  });
+
+  test('controller without class @Docs and route without @Docs has no tags key', async () => {
+    @Controller('/bare')
+    class BareController {
+      @Get('/x')
+      x() {
+        return { meta: null, data: 'x' };
+      }
+    }
+    const res = await new Grain({
+      controllers: [BareController],
+      docs: { info: { title: 'Bare', version: '1.0' } },
+    }).handle(new Request('http://x/docs/json'));
+    const op = ((await res.json()) as any).paths['/bare/x'].get;
+    expect(op.tags).toBeUndefined();
+    expect(op.summary).toBeUndefined();
+  });
+});

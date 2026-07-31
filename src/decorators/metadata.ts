@@ -138,6 +138,7 @@ export function readControllerMeta(ctor: Ctor): {
   const raw: RawRoute[] = Reflect.getMetadata(ROUTES, ctor) ?? [];
   const { guards: classGuards, isPublic: classPublic } =
     readClassGuardMeta(ctor);
+  const classDocs: RouteDocs | undefined = Reflect.getOwnMetadata(DOCS, ctor);
   const routes = raw.map((route) => {
     const params: ParamMeta[] =
       Reflect.getMetadata(PARAMS, ctor, route.handlerName) ?? [];
@@ -158,6 +159,11 @@ export function readControllerMeta(ctor: Ctor): {
     );
     const returns: ReturnsMeta | undefined = Reflect.getMetadata(
       RETURNS,
+      ctor,
+      route.handlerName
+    );
+    const routeDocs: RouteDocs | undefined = Reflect.getMetadata(
+      DOCS,
       ctor,
       route.handlerName
     );
@@ -184,7 +190,7 @@ export function readControllerMeta(ctor: Ctor): {
       isPublic:
         classPublic ||
         Reflect.getOwnMetadata(PUBLIC, ctor, route.handlerName) === true,
-      docs: Reflect.getMetadata(DOCS, ctor, route.handlerName),
+      docs: classDocs || routeDocs ? { ...classDocs, ...routeDocs } : undefined,
       returns,
     };
   });
