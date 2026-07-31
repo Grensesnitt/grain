@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import './validation/formats';
 import type { Ctx as CtxShape } from './types';
 
-export const GRAIN_VERSION = '0.3.1';
+export const GRAIN_VERSION = '0.3.2';
 
 export { Grain, type GrainOptions } from './grain';
 export type { CorsOptions } from './cors';

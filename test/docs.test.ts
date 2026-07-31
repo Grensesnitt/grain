@@ -106,6 +106,71 @@ describe('openapi docs', () => {
     expect(doc.security).toEqual([{ bearer: [] }]);
   });
 
+  test('onResponse hooks and CORS headers both apply to the docs HTML route', async () => {
+    const withHooks = new Grain({
+      controllers: [],
+      docs: { info: { title: 'Test API', version: '1.0' } },
+      cors: { origin: true },
+    }).onResponse((res) => {
+      res.headers.set('x-marker', 'on');
+    });
+    const res = await withHooks.handle(
+      new Request('http://x/docs', {
+        headers: { origin: 'http://app.example' },
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-marker')).toBe('on');
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'http://app.example'
+    );
+  });
+
+  test('docs HTML embeds a relative spec URL, not an absolute one', async () => {
+    const res = await app().handle(new Request('http://x/docs'));
+    const html = await res.text();
+    expect(html).toContain('url: "docs/json"');
+    expect(html).not.toContain("'/docs/json'");
+    expect(html).not.toContain('"/docs/json"');
+  });
+
+  test('relative doc URL resolves correctly behind a prefix-stripping proxy', () => {
+    // Mirrors the browser's own relative-URL resolution: the page is served
+    // at .../docs with no trailing slash, so `docs/json` resolves against
+    // the *parent* of docs, landing on a sibling path — not a nested one —
+    // regardless of what prefix a reverse proxy puts in front of it.
+    expect(new URL('docs/json', 'http://x/docs').pathname).toBe('/docs/json');
+    expect(
+      new URL('docs/json', 'http://gateway.internal/api/core/docs').pathname
+    ).toBe('/api/core/docs/json');
+  });
+
+  test('a custom docs path yields a relative spec URL from its own last segment', async () => {
+    const custom = new Grain({
+      controllers: [],
+      docs: { path: '/internal/apidocs', info: { title: 'Test API' } },
+    });
+    const res = await custom.handle(new Request('http://x/internal/apidocs'));
+    const html = await res.text();
+    expect(html).toContain('url: "apidocs/json"');
+    expect(html).not.toContain('/internal/apidocs/json');
+  });
+
+  test('title is HTML-escaped and the spec URL is JSON-encoded for the script context', async () => {
+    const evil = new Grain({
+      controllers: [],
+      docs: { info: { title: '</script><script>alert(1)</script>' } },
+    });
+    const res = await evil.handle(new Request('http://x/docs'));
+    const html = await res.text();
+    expect(html).not.toContain(
+      '<title></script><script>alert(1)</script></title>'
+    );
+    expect(html).toContain(
+      '<title>&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;</title>'
+    );
+  });
+
   test('throws when a controller route collides with the docs path', async () => {
     @Controller('/docs')
     class CollidingController {

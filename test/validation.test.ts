@@ -46,6 +46,18 @@ test('failure throws ValidationError with source in message and path details', (
   }
 });
 
+test('message source behaves like body: no coercion, and errors are labeled accordingly', () => {
+  const validate = compileValidator(Query, 'message');
+  // No coercion: a string '2' must NOT convert to a number, unlike 'query'.
+  expect(() => validate({ page: '2' })).toThrow(ValidationError);
+  try {
+    validate({ page: '2' });
+    expect.unreachable();
+  } catch (err) {
+    expect((err as ValidationError).message).toBe('message validation failed');
+  }
+});
+
 test('params validator coerces too', () => {
   const validate = compileValidator(t.Object({ id: t.Number() }), 'params');
   expect(validate({ id: '42' })).toEqual({ id: 42 });

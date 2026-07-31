@@ -783,6 +783,32 @@ describe('cors', () => {
     ).toThrow(/credentials/);
   });
 
+  test('onResponse hooks run on preflight responses, without duplicating CORS headers', async () => {
+    const app = new Grain({
+      controllers: [CController],
+      cors: { origin: true },
+    }).onResponse((res) => {
+      res.headers.set('x-marker', 'on');
+    });
+    const res = await app.handle(
+      new Request('http://x/c/thing', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://app.example',
+          'access-control-request-method': 'GET',
+        },
+      })
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get('x-marker')).toBe('on');
+    expect(res.headers.get('access-control-allow-origin')).toBe(
+      'http://app.example'
+    );
+    // A single Vary: Origin proves the built-in CORS hook wasn't re-run on
+    // top of preflightHandler's own CORS treatment.
+    expect(res.headers.get('vary')).toBe('Origin');
+  });
+
   test('CORS headers land on error responses with a single Vary', async () => {
     const res = await build().handle(
       new Request('http://x/c/boom', {

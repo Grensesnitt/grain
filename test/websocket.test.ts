@@ -110,9 +110,22 @@ describe('websocket gateways', () => {
     const err = await next();
     expect(err.statusCode).toBe(400);
     expect(err.error).toBe('Validation Failed');
+    expect(err.message).toBe('message validation failed');
     ws.send('not json');
     expect((await next()).statusCode).toBe(400);
     ws.close();
+  });
+
+  test('onResponse hooks run on the gateway upgrade error path (guard failure)', async () => {
+    const hooked = new Grain({
+      controllers: [],
+      gateways: [EchoGateway],
+    }).onResponse((res) => {
+      res.headers.set('x-marker', 'on');
+    });
+    const res = await hooked.handle(new Request('http://x/ws?token=bad'));
+    expect(res.status).toBe(401);
+    expect(res.headers.get('x-marker')).toBe('on');
   });
 
   test('handle() without a live server returns 426 for the ws path', async () => {

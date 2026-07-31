@@ -52,6 +52,7 @@ export class Grain {
   private readonly onRequestHooks: OnRequestHook[] = [];
   private readonly onErrorHooks: OnErrorHook[] = [];
   private readonly onResponseHooks: OnResponseHook[] = [];
+  private corsHook: OnResponseHook | null = null;
   private compiled: Compiled | null = null;
   private server: Server<unknown> | null = null;
 
@@ -61,8 +62,19 @@ export class Grain {
       if (options.cors.origin === '*' && options.cors.credentials) {
         throw new Error("cors: origin '*' cannot be combined with credentials");
       }
-      this.onResponseHooks.push(corsResponseHook(options.cors));
+      this.corsHook = corsResponseHook(options.cors);
+      this.onResponseHooks.push(this.corsHook);
     }
+  }
+
+  // Preflight responses already apply CORS headers themselves (via
+  // preflightHandler), so routing them through the full onResponseHooks list
+  // would re-run corsHook and duplicate the Vary/allow-* headers. This gives
+  // preflight only the caller's own onResponse hooks.
+  private get userResponseHooks(): OnResponseHook[] {
+    return this.corsHook
+      ? this.onResponseHooks.filter((hook) => hook !== this.corsHook)
+      : this.onResponseHooks;
   }
 
   onRequest(hook: OnRequestHook): this {
@@ -114,7 +126,7 @@ export class Grain {
       const meta = readGatewayMeta(gatewayClass);
       const instance = this.container.resolve(gatewayClass) as WsGateway;
       const validate = meta.message
-        ? compileValidator(meta.message, 'body')
+        ? compileValidator(meta.message, 'message')
         : null;
       const { guards: classGuards, isPublic } =
         readClassGuardMeta(gatewayClass);
@@ -126,27 +138,29 @@ export class Grain {
       const onError = this.onErrorHooks;
       const upgrade: CompiledHandler = async (req, server = null) => {
         const ctx = createCtx(req, server);
+        const respond = (res: Response): Promise<Response> =>
+          this.applyResponseHooks(res, req, this.onResponseHooks);
         try {
           for (const hook of onRequest) {
             const out = await hook(ctx);
-            if (out instanceof Response) return out;
+            if (out instanceof Response) return respond(out);
           }
           for (const guard of guards) {
             if (!(await guard.canActivate(ctx))) throw new ForbiddenError();
           }
           if (!server) {
-            return new Response('Upgrade Required', { status: 426 });
+            return respond(new Response('Upgrade Required', { status: 426 }));
           }
           const data: WsData = { ctx, gateway: instance, validate };
           if (server.upgrade(req, { data }))
             return undefined as unknown as Response;
-          return new Response('Upgrade failed', { status: 400 });
+          return respond(new Response('Upgrade failed', { status: 400 }));
         } catch (err) {
           for (const hook of onError) {
             const out = await hook(err, ctx);
-            if (out instanceof Response) return out;
+            if (out instanceof Response) return respond(out);
           }
-          return errorToResponse(err);
+          return respond(errorToResponse(err));
         }
       };
       const handlers = (routes[meta.path] ??= {});
@@ -157,19 +171,29 @@ export class Grain {
     if (this.options.docs) {
       const docsPath = this.options.docs.path ?? '/docs';
       const doc = buildOpenApiDoc(this.options.controllers, this.options.docs);
-      const html = swaggerHtml(
-        this.options.docs.info.title,
-        `${docsPath}/json`
-      );
+      // The page is served at docsPath with no trailing slash, so a browser
+      // resolves a relative URL against docsPath's *parent* — e.g. from
+      // /api/core/docs, `docs/json` resolves to /api/core/docs/json. Using
+      // the last path segment (rather than an absolute `${docsPath}/json`)
+      // keeps this working behind proxies that strip a path prefix.
+      const lastSegment = docsPath.split('/').filter(Boolean).pop() ?? 'docs';
+      const relativeJsonUrl = `${lastSegment}/json`;
+      const html = swaggerHtml(this.options.docs.info.title, relativeJsonUrl);
       const docsRoutes: [string, CompiledHandler][] = [
         [
           docsPath,
-          async () =>
-            new Response(html, {
-              headers: { 'content-type': 'text/html; charset=utf-8' },
-            }),
+          (req: Request) =>
+            this.finalize(
+              new Response(html, {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              }),
+              req
+            ),
         ],
-        [`${docsPath}/json`, async () => Response.json(doc)],
+        [
+          `${docsPath}/json`,
+          (req: Request) => this.finalize(Response.json(doc), req),
+        ],
       ];
       for (const [path, handler] of docsRoutes) {
         const handlers = (routes[path] ??= {});
@@ -180,7 +204,11 @@ export class Grain {
       }
     }
     if (this.options.cors) {
-      const preflight = preflightHandler(this.options.cors);
+      const rawPreflight = preflightHandler(this.options.cors);
+      const preflight: CompiledHandler = async (req) => {
+        const res = await rawPreflight(req);
+        return this.applyResponseHooks(res, req, this.userResponseHooks);
+      };
       for (const handlers of Object.values(routes)) {
         handlers['OPTIONS'] ??= preflight;
       }
@@ -204,15 +232,23 @@ export class Grain {
     return handler(req, this.server);
   }
 
-  private async finalize(res: Response, req: Request): Promise<Response> {
+  private async applyResponseHooks(
+    res: Response,
+    req: Request,
+    hooks: OnResponseHook[]
+  ): Promise<Response> {
     const setCookies: string[] = [];
     const ctx = createCtx(req, this.server, setCookies);
-    for (const hook of this.onResponseHooks) {
+    for (const hook of hooks) {
       const out = await hook(res, ctx);
       if (out instanceof Response) res = out;
     }
     for (const cookie of setCookies) res.headers.append('Set-Cookie', cookie);
     return res;
+  }
+
+  private finalize(res: Response, req: Request): Promise<Response> {
+    return this.applyResponseHooks(res, req, this.onResponseHooks);
   }
 
   listen(

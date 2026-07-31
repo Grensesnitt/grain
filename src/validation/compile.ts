@@ -7,10 +7,10 @@ export type Validator = (value: unknown) => unknown;
 
 export function compileValidator(
   schema: TSchema,
-  source: 'body' | 'query' | 'params'
+  source: 'body' | 'query' | 'params' | 'message'
 ): Validator {
   const check = TypeCompiler.Compile(schema);
-  const convert = source !== 'body';
+  const convert = source !== 'body' && source !== 'message';
   return (value) => {
     // Value.Convert/Value.Default mutate in place — clone so a failed validation
     // never leaks partially-coerced/defaulted values back into the caller's object.
