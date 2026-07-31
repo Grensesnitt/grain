@@ -6,11 +6,11 @@ import {
   Dto,
   Get,
   Grain,
-  HttpCode,
   Param,
   Post,
   Public,
   Query,
+  Returns,
   t,
 } from '../src';
 
@@ -47,9 +47,9 @@ class ThingsController {
   }
 
   @Post('/')
-  @HttpCode(201)
+  @Returns(201, ThingEnvelope)
   @Public()
-  @Docs({ tags: ['things'], response: { 201: ThingEnvelope } })
+  @Docs({ tags: ['things'] })
   create(@Body() body: CreateThingDto) {
     return { meta: null, data: body };
   }

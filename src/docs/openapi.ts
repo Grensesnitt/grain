@@ -39,21 +39,15 @@ function parameters(route: ResolvedRoute): unknown[] {
 
 function responses(route: ResolvedRoute): Record<string, unknown> {
   const status = String(route.httpCode ?? 200);
-  const response = route.docs?.response;
-  if (response === undefined) return { [status]: { description: 'OK' } };
-  const byCode: Record<number, TSchema> =
-    Kind in (response as object)
-      ? { [Number(status)]: response as TSchema }
-      : (response as Record<number, TSchema>);
-  return Object.fromEntries(
-    Object.entries(byCode).map(([code, schema]) => [
-      code,
-      {
-        description: 'OK',
-        content: { 'application/json': { schema: toJsonSchema(schema) } },
+  if (!route.returns) return { [status]: { description: 'OK' } };
+  return {
+    [status]: {
+      description: 'OK',
+      content: {
+        'application/json': { schema: toJsonSchema(route.returns.schema) },
       },
-    ])
-  );
+    },
+  };
 }
 
 export function buildOpenApiDoc(controllers: Ctor[], options: DocsOptions): unknown {
