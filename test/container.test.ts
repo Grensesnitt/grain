@@ -71,7 +71,7 @@ test('non-class constructor params throw a clear error', () => {
   }
   const c = new Container();
   expect(() => c.resolve(NeedsString)).toThrow(
-    'Cannot inject parameter 0 of NeedsString'
+    'NeedsString parameter 0: primitives and interfaces are not injectable'
   );
 });
 

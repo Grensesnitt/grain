@@ -9,7 +9,7 @@ import type {
   WsGateway,
 } from './types';
 import type { Provider } from './di/provider';
-import { Container } from './di/container';
+import { Container, WiringError } from './di/container';
 import { ConfigError } from './config/config';
 import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
 import { readGatewayMeta } from './decorators/gateway';
@@ -99,14 +99,18 @@ export class Grain {
   private compile(): Compiled {
     if (this.compiled) return this.compiled;
     const routes: Compiled['routes'] = {};
-    // Validate every config class reachable from the graph roots before any
-    // instantiation, so a misconfigured boot fails exactly once with the
-    // complete list — and no constructor ever runs with an invalid config.
-    this.container.preflightConfigs([
+    // Walk the whole dependency graph before any instantiation, so a broken
+    // boot fails exactly once with the complete list — wiring mistakes first
+    // (they are more fundamental), then config validation issues — and no
+    // constructor ever runs with an invalid config.
+    this.container.preflight([
       ...this.options.controllers,
       ...(this.options.guards ?? []),
       ...(this.options.gateways ?? []),
     ]);
+    if (this.container.wiringIssues.length > 0) {
+      throw new WiringError([...this.container.wiringIssues]);
+    }
     if (this.container.configIssues.length > 0) {
       throw new ConfigError([...this.container.configIssues]);
     }

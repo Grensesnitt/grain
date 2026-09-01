@@ -19,6 +19,37 @@ const NON_INJECTABLE = new Set<unknown>([
   Symbol,
 ]);
 
+export class WiringError extends Error {
+  constructor(readonly issues: string[]) {
+    super(`DI wiring failed:\n${issues.map((i) => `  - ${i}`).join('\n')}`);
+    this.name = 'WiringError';
+  }
+}
+
+// Diagnoses one constructor-param slot. `Object` gets its own case because it
+// is what design:paramtypes collapses to when a param class is imported with
+// `import type` — the single most common DI mistake.
+function paramIssue(
+  target: Ctor,
+  index: number,
+  param: unknown
+): string | null {
+  if (param === undefined) {
+    return `${target.name} parameter ${index}: type is undefined — usually a circular file import`;
+  }
+  if (param === Object) {
+    return (
+      `${target.name} parameter ${index}: type collapsed to Object — the ` +
+      `param class was probably imported with 'import type'; constructor-param ` +
+      `classes need value imports`
+    );
+  }
+  if (typeof param !== 'function' || NON_INJECTABLE.has(param)) {
+    return `${target.name} parameter ${index}: primitives and interfaces are not injectable`;
+  }
+  return null;
+}
+
 export class Container {
   private readonly instances = new Map<Ctor, unknown>();
   private readonly factories = new Map<Ctor, (c: Container) => unknown>();
@@ -26,6 +57,7 @@ export class Container {
   private readonly classLinks = new Map<Ctor, Ctor>();
   private preflightDone = false;
   readonly configIssues: ConfigIssue[] = [];
+  readonly wiringIssues: string[] = [];
 
   constructor(
     private readonly env: Record<string, string | undefined> = process.env
@@ -44,12 +76,14 @@ export class Container {
   }
 
   // Walks design:paramtypes metadata from the given roots WITHOUT
-  // instantiating anything, loading every reachable config class so all of
-  // their validation issues aggregate into one boot failure — before any
-  // dependent's constructor can run with an invalid config value. useFactory
-  // providers are opaque to the walk; configs they demand later hit the
-  // immediate-throw path in resolve() instead.
-  preflightConfigs(roots: Ctor[]): void {
+  // instantiating anything, collecting every problem the graph holds —
+  // config-class validation issues (configIssues) and DI wiring mistakes
+  // (wiringIssues: import-type collapse, circular-import undefined types,
+  // primitives, missing @Injectable) — so boot fails once with the complete
+  // list, before any constructor runs. useFactory providers are opaque to
+  // the walk; anything they demand later hits the fallback paths in
+  // resolve() instead.
+  preflight(roots: Ctor[]): void {
     const visited = new Set<Ctor>();
     const visit = (target: Ctor): void => {
       if (visited.has(target)) return;
@@ -65,13 +99,22 @@ export class Container {
         this.resolve(target);
         return;
       }
+      if (!isInjectable(target)) {
+        this.wiringIssues.push(
+          `${target.name} is not marked with @Injectable() or @Controller()`
+        );
+        return;
+      }
       const paramTypes: unknown[] =
         Reflect.getMetadata('design:paramtypes', target) ?? [];
-      for (const param of paramTypes) {
-        if (typeof param === 'function' && !NON_INJECTABLE.has(param)) {
-          visit(param as Ctor);
+      paramTypes.forEach((param, index) => {
+        const issue = paramIssue(target, index, param);
+        if (issue) {
+          this.wiringIssues.push(issue);
+          return;
         }
-      }
+        visit(param as Ctor);
+      });
     };
     for (const root of roots) visit(root);
     this.preflightDone = true;
@@ -123,17 +166,8 @@ export class Container {
       const paramTypes: unknown[] =
         Reflect.getMetadata('design:paramtypes', target) ?? [];
       const args = paramTypes.map((param, index) => {
-        if (
-          typeof param !== 'function' ||
-          NON_INJECTABLE.has(param) ||
-          param === undefined
-        ) {
-          throw new Error(
-            `Cannot inject parameter ${index} of ${target.name}: not a class ` +
-              `(primitives and interfaces are not injectable; ` +
-              `an undefined type can also mean a circular file import)`
-          );
-        }
+        const issue = paramIssue(target, index, param);
+        if (issue) throw new WiringError([issue]);
         return this.resolve(param as Ctor);
       });
       const instance = new target(...args);
