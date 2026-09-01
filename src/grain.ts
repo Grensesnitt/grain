@@ -99,6 +99,17 @@ export class Grain {
   private compile(): Compiled {
     if (this.compiled) return this.compiled;
     const routes: Compiled['routes'] = {};
+    // Validate every config class reachable from the graph roots before any
+    // instantiation, so a misconfigured boot fails exactly once with the
+    // complete list — and no constructor ever runs with an invalid config.
+    this.container.preflightConfigs([
+      ...this.options.controllers,
+      ...(this.options.guards ?? []),
+      ...(this.options.gateways ?? []),
+    ]);
+    if (this.container.configIssues.length > 0) {
+      throw new ConfigError([...this.container.configIssues]);
+    }
     const globalGuards = (this.options.guards ?? []).map((g) =>
       this.container.resolve(g)
     );

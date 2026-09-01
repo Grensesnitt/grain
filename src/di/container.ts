@@ -3,6 +3,7 @@ import type { Ctor } from '../types';
 import type { Provider } from './provider';
 import { isInjectable } from './injectable';
 import {
+  ConfigError,
   configSchema,
   loadConfigValue,
   type ConfigIssue,
@@ -22,6 +23,8 @@ export class Container {
   private readonly instances = new Map<Ctor, unknown>();
   private readonly factories = new Map<Ctor, (c: Container) => unknown>();
   private readonly resolving = new Set<Ctor>();
+  private readonly classLinks = new Map<Ctor, Ctor>();
+  private preflightDone = false;
   readonly configIssues: ConfigIssue[] = [];
 
   constructor(
@@ -34,9 +37,44 @@ export class Container {
       this.instances.set(provider.provide, provider.useValue);
     } else if ('useClass' in provider) {
       this.factories.set(provider.provide, (c) => c.resolve(provider.useClass));
+      this.classLinks.set(provider.provide, provider.useClass);
     } else {
       this.factories.set(provider.provide, provider.useFactory);
     }
+  }
+
+  // Walks design:paramtypes metadata from the given roots WITHOUT
+  // instantiating anything, loading every reachable config class so all of
+  // their validation issues aggregate into one boot failure — before any
+  // dependent's constructor can run with an invalid config value. useFactory
+  // providers are opaque to the walk; configs they demand later hit the
+  // immediate-throw path in resolve() instead.
+  preflightConfigs(roots: Ctor[]): void {
+    const visited = new Set<Ctor>();
+    const visit = (target: Ctor): void => {
+      if (visited.has(target)) return;
+      visited.add(target);
+      if (this.instances.has(target)) return; // useValue: nothing to validate
+      const link = this.classLinks.get(target);
+      if (link) {
+        visit(link);
+        return;
+      }
+      if (this.factories.has(target)) return; // useFactory: opaque
+      if (configSchema(target)) {
+        this.resolve(target);
+        return;
+      }
+      const paramTypes: unknown[] =
+        Reflect.getMetadata('design:paramtypes', target) ?? [];
+      for (const param of paramTypes) {
+        if (typeof param === 'function' && !NON_INJECTABLE.has(param)) {
+          visit(param as Ctor);
+        }
+      }
+    };
+    for (const root of roots) visit(root);
+    this.preflightDone = true;
   }
 
   resolve<T>(target: Ctor<T>): T {
@@ -54,12 +92,20 @@ export class Container {
     // which is how tests substitute a config without touching the env.
     const schema = configSchema(target);
     if (schema) {
+      const before = this.configIssues.length;
       const instance = loadConfigValue(
         target,
         schema,
         this.env,
         this.configIssues
       );
+      // A config class first demanded after the preflight pass (e.g. from
+      // inside a useFactory provider) missed the aggregated boot report, so
+      // an invalid one must throw here — a dependent's constructor must
+      // never run with an invalid config value.
+      if (this.preflightDone && this.configIssues.length > before) {
+        throw new ConfigError(this.configIssues.slice(before));
+      }
       this.instances.set(target, instance);
       return instance as T;
     }

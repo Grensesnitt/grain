@@ -188,6 +188,47 @@ describe('DI integration', () => {
     ]);
   });
 
+  test('a constructor consuming an invalid config never runs — boot fails with ConfigError first', async () => {
+    class EagerConfig extends Config(t.Object({ NEEDED: t.String() })) {}
+
+    @Injectable()
+    class Eager {
+      readonly value: string;
+      constructor(config: EagerConfig) {
+        // Would throw TypeError on an invalid (empty) config value if this
+        // constructor were allowed to run before the aggregated boot check.
+        this.value = config.NEEDED.toUpperCase();
+      }
+    }
+
+    @Controller('/eager')
+    class EagerController {
+      constructor(readonly eager: Eager) {}
+      @Get('/')
+      go() {
+        return { value: this.eager.value };
+      }
+    }
+
+    const app = new Grain({ controllers: [EagerController], env: {} });
+    let caught: unknown;
+    try {
+      await app.handle(new Request('http://localhost/eager'));
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ConfigError);
+    expect((caught as ConfigError).issues[0].configName).toBe('EagerConfig');
+
+    // With the var present the same graph boots and the constructor runs.
+    const ok = new Grain({
+      controllers: [EagerController],
+      env: { NEEDED: 'works' },
+    });
+    const res = await ok.handle(new Request('http://localhost/eager'));
+    expect(await res.json()).toEqual({ value: 'WORKS' });
+  });
+
   test('a config class nothing injects is never demanded from the env', async () => {
     class UnusedConfig extends Config(t.Object({ MUST_BE_SET: t.String() })) {}
 
