@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import type { Ctor } from '../types';
+import type { ProviderToken } from './provider';
 
 const INJECTABLE = Symbol.for('grain:injectable');
 
@@ -7,7 +8,7 @@ export function markInjectable(target: Ctor): void {
   Reflect.defineMetadata(INJECTABLE, true, target);
 }
 
-export function isInjectable(target: Ctor): boolean {
+export function isInjectable(target: ProviderToken): boolean {
   return Reflect.getOwnMetadata(INJECTABLE, target) === true;
 }
 

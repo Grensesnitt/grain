@@ -126,6 +126,28 @@ describe('providers', () => {
     expect(calls).toBe(1);
   });
 
+  test('abstract classes work as interface-style tokens', () => {
+    abstract class Sender {
+      abstract deliver(): string;
+    }
+    @Injectable()
+    class Impl extends Sender {
+      deliver() {
+        return 'impl';
+      }
+    }
+    const c = new Container();
+    c.register({ provide: Sender, useClass: Impl });
+    expect(c.resolve(Sender).deliver()).toBe('impl');
+    // useValue overrides the token like any other (last-wins).
+    c.register({ provide: Sender, useValue: { deliver: () => 'fake' } });
+    expect(new Container()).toBeDefined();
+    const c2 = new Container();
+    c2.register({ provide: Sender, useClass: Impl });
+    c2.register({ provide: Sender, useValue: { deliver: () => 'fake' } });
+    expect(c2.resolve(Sender).deliver()).toBe('fake');
+  });
+
   test('useClass: substitute implementation under the token', () => {
     class Base {
       kind = 'base';

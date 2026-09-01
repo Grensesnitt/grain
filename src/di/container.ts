@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { Ctor } from '../types';
-import type { Provider } from './provider';
+import type { Provider, ProviderToken } from './provider';
 import { isInjectable } from './injectable';
 import {
   ConfigError,
@@ -30,7 +30,7 @@ export class WiringError extends Error {
 // is what design:paramtypes collapses to when a param class is imported with
 // `import type` — the single most common DI mistake.
 function paramIssue(
-  target: Ctor,
+  target: ProviderToken,
   index: number,
   param: unknown
 ): string | null {
@@ -51,10 +51,13 @@ function paramIssue(
 }
 
 export class Container {
-  private readonly instances = new Map<Ctor, unknown>();
-  private readonly factories = new Map<Ctor, (c: Container) => unknown>();
-  private readonly resolving = new Set<Ctor>();
-  private readonly classLinks = new Map<Ctor, Ctor>();
+  private readonly instances = new Map<ProviderToken, unknown>();
+  private readonly factories = new Map<
+    ProviderToken,
+    (c: Container) => unknown
+  >();
+  private readonly resolving = new Set<ProviderToken>();
+  private readonly classLinks = new Map<ProviderToken, Ctor>();
   private readonly registeredClasses: Ctor[] = [];
   private preflightDone = false;
   readonly configIssues: ConfigIssue[] = [];
@@ -94,9 +97,9 @@ export class Container {
   // list, before any constructor runs. useFactory providers are opaque to
   // the walk; anything they demand later hits the fallback paths in
   // resolve() instead.
-  preflight(roots: Ctor[]): void {
-    const visited = new Set<Ctor>();
-    const visit = (target: Ctor): void => {
+  preflight(roots: ProviderToken[]): void {
+    const visited = new Set<ProviderToken>();
+    const visit = (target: ProviderToken): void => {
       if (visited.has(target)) return;
       visited.add(target);
       if (this.instances.has(target)) return; // useValue: nothing to validate
@@ -132,7 +135,7 @@ export class Container {
   }
 
   // Every provider token that init() must resolve eagerly.
-  eagerTokens(): Ctor[] {
+  eagerTokens(): ProviderToken[] {
     return [...this.registeredClasses, ...this.factories.keys()];
   }
 
@@ -142,7 +145,7 @@ export class Container {
     return [...new Set(this.instances.values())];
   }
 
-  resolve<T>(target: Ctor<T>): T {
+  resolve<T>(target: ProviderToken<T>): T {
     if (this.instances.has(target)) return this.instances.get(target) as T;
     const factory = this.factories.get(target);
     if (factory) {
@@ -192,7 +195,10 @@ export class Container {
         if (issue) throw new WiringError([issue]);
         return this.resolve(param as Ctor);
       });
-      const instance = new target(...args);
+      // Runtime-safe: an abstract token never reaches this line — it is
+      // either provided (instances/factories above) or rejected by the
+      // isInjectable check.
+      const instance = new (target as Ctor<T>)(...args);
       this.instances.set(target, instance);
       return instance;
     } finally {

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import './validation/formats';
 import type { Ctx as CtxShape } from './types';
 
-export const GRAIN_VERSION = '0.12.0';
+export const GRAIN_VERSION = '0.12.1';
 
 export { Grain, type GrainOptions } from './grain';
 export type { CorsOptions } from './cors';
@@ -23,7 +23,7 @@ export { Returns } from './decorators/returns';
 export { UseGuard } from './decorators/use-guard';
 export { Injectable } from './di/injectable';
 export { WiringError } from './di/container';
-export type { Provider } from './di/provider';
+export type { Provider, ProviderToken } from './di/provider';
 export {
   BadRequestError,
   ConflictError,
