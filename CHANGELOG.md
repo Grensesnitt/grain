@@ -3,6 +3,12 @@
 Versions are git tags (`vX.Y.Z`); consumers pin them as
 `github:Grensesnitt/grain#vX.Y.Z`. Breaking changes are marked **BREAKING**.
 
+## v0.12.1 — 2026-09-01
+
+- Abstract classes work as DI tokens (`ProviderToken`) for
+  `useValue`/`useClass`/`useFactory` — interface-style ports like
+  `abstract class EmailSender` with a swappable implementation.
+
 ## v0.12.0 — 2026-09-01
 
 - `createTestApp(options, {providers?, env?, logger?})`: build an app with
