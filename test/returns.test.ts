@@ -9,6 +9,7 @@ import {
   Returns,
   t,
 } from '../src';
+import { buildOpenApiDoc } from '../src/docs/openapi';
 
 const ItemEnvelope = t.Object({
   meta: t.Null(),
@@ -161,26 +162,66 @@ describe('@Returns', () => {
     expect(empty.status).toBe(204);
   });
 
-  test('@Returns(code) with no schema throws a fail-fast error (JS/any misuse)', () => {
-    expect(() => Returns(201 as never)).toThrow(
-      '@Returns(code) requires a schema: @Returns(code, schema)'
+  test('@Returns(successCode) with no schema throws; error codes may omit it', () => {
+    expect(() => Returns(201)).toThrow(
+      /success codes need @Returns\(code, schema\)/
+    );
+    expect(() => Returns(404)).not.toThrow();
+  });
+
+  test('two success @Returns on the same method throw at boot', async () => {
+    @Controller('/dup')
+    class DupController {
+      @Get('/x')
+      @Returns(ItemEnvelope)
+      @Returns(ItemEnvelope)
+      x() {
+        return { meta: null, data: leakyItem() };
+      }
+    }
+    const app = new Grain({ controllers: [DupController] });
+    let caught: unknown;
+    try {
+      await app.handle(new Request('http://x/dup/x'));
+    } catch (e) {
+      caught = e;
+    }
+    expect(String(caught)).toMatch(
+      /Multiple success @Returns on DupController\.x/
     );
   });
 
-  test('duplicate @Returns on the same method throws at class-definition time', () => {
-    // Method decorators run bottom-up while the class body is being defined,
-    // so the throw happens synchronously as the class is declared.
-    expect(() => {
-      @Controller('/dup')
-      class DupController {
-        @Get('/x')
-        @Returns(ItemEnvelope)
-        @Returns(ItemEnvelope)
-        x() {
-          return { meta: null, data: leakyItem() };
-        }
+  test('error-code @Returns entries document without changing runtime behavior', async () => {
+    @Controller('/multi')
+    class MultiController {
+      @Get('/:id')
+      @Returns(ItemEnvelope)
+      @Returns(404)
+      @Returns(409, t.Object({ conflict: t.String() }))
+      read() {
+        return { meta: null, data: leakyItem() };
       }
-      return DupController;
-    }).toThrow(/Duplicate @Returns on DupController\.x/);
+    }
+    const app = new Grain({ controllers: [MultiController] });
+    // Runtime: success contract still cleans and returns 200.
+    const res = await app.handle(new Request('http://x/multi/1'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: Record<string, unknown> };
+    expect(body.data.password).toBeUndefined();
+    // Docs: all three statuses documented; 404 gets the standard error shape.
+    const doc = buildOpenApiDoc([MultiController], {
+      info: { title: 't' },
+    }) as {
+      paths: Record<string, { get: { responses: Record<string, any> } }>;
+    };
+    const responses = doc.paths['/multi/{id}'].get.responses;
+    expect(Object.keys(responses).sort()).toEqual(['200', '404', '409']);
+    expect(responses['404'].description).toBe('Not Found');
+    expect(
+      responses['404'].content['application/json'].schema.properties.statusCode
+    ).toBeDefined();
+    expect(
+      responses['409'].content['application/json'].schema.properties.conflict
+    ).toBeDefined();
   });
 });

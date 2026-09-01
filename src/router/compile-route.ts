@@ -58,7 +58,7 @@ export function compileRoute(input: CompileRouteInput): CompiledHandler {
   const validateParams = schemas.params
     ? compileValidator(schemas.params, 'params')
     : null;
-  const clean = returns ? compileCleaner(returns.schema) : null;
+  const clean = returns?.schema ? compileCleaner(returns.schema) : null;
   const needsBody =
     validateBody !== null || paramMetas.some((p) => p.kind === 'body');
   const extractors = buildExtractors(paramMetas, fn.length);

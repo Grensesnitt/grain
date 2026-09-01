@@ -39,6 +39,7 @@ export interface ResolvedRoute extends RawRoute {
   isPublic: boolean;
   docs?: RouteDocs;
   returns?: ReturnsMeta;
+  errorReturns: ReturnsMeta[];
 }
 
 function primitiveSchema(type: unknown): TSchema | null {
@@ -158,11 +159,17 @@ export function readControllerMeta(ctor: Ctor): {
       ctor,
       route.handlerName
     );
-    const returns: ReturnsMeta | undefined = Reflect.getMetadata(
-      RETURNS,
-      ctor,
-      route.handlerName
-    );
+    const returnsList: ReturnsMeta[] =
+      Reflect.getMetadata(RETURNS, ctor, route.handlerName) ?? [];
+    const successReturns = returnsList.filter((r) => (r.code ?? 200) < 400);
+    if (successReturns.length > 1) {
+      throw new Error(
+        `Multiple success @Returns on ${ctor.name}.${route.handlerName}: ` +
+          `declare at most one entry below status 400`
+      );
+    }
+    const returns: ReturnsMeta | undefined = successReturns[0];
+    const errorReturns = returnsList.filter((r) => (r.code ?? 200) >= 400);
     const routeDocs: RouteDocs | undefined = Reflect.getMetadata(
       DOCS,
       ctor,
@@ -193,6 +200,7 @@ export function readControllerMeta(ctor: Ctor): {
         Reflect.getOwnMetadata(PUBLIC, ctor, route.handlerName) === true,
       docs: classDocs || routeDocs ? { ...classDocs, ...routeDocs } : undefined,
       returns,
+      errorReturns,
     };
   });
   return { prefix: joinPath(prefix, ''), routes };
