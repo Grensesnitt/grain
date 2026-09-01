@@ -64,6 +64,8 @@ export class Container {
     private readonly env: Record<string, string | undefined> = process.env
   ) {}
 
+  // Re-registering a token replaces the earlier provider regardless of kind
+  // (last-wins) — this is what makes test overrides dependable.
   register(provider: Provider): void {
     if (typeof provider === 'function') {
       // Plain classes are instantiated eagerly at init() so their lifecycle
@@ -71,6 +73,9 @@ export class Container {
       this.registeredClasses.push(provider);
       return;
     }
+    this.instances.delete(provider.provide);
+    this.factories.delete(provider.provide);
+    this.classLinks.delete(provider.provide);
     if ('useValue' in provider) {
       this.instances.set(provider.provide, provider.useValue);
     } else if ('useClass' in provider) {
