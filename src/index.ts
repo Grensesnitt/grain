@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import './validation/formats';
 import type { Ctx as CtxShape } from './types';
 
-export const GRAIN_VERSION = '0.5.0';
+export const GRAIN_VERSION = '0.6.0';
 
 export { Grain, type GrainOptions } from './grain';
 export type { CorsOptions } from './cors';
@@ -27,6 +27,14 @@ export {
   ValidationError,
 } from './errors/http-error';
 export { Dto } from './validation/dto';
+export {
+  Config,
+  ConfigError,
+  resolveConfig,
+  type ConfigClass,
+  type ConfigIssue,
+  type ConfigRefine,
+} from './config/config';
 export type { DocsOptions } from './docs/openapi';
 // The `Ctx` decorator (value, re-exported above from './decorators/params')
 // and the `Ctx` interface (type, below) intentionally share the identifier so

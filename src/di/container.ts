@@ -2,6 +2,11 @@ import 'reflect-metadata';
 import type { Ctor } from '../types';
 import type { Provider } from './provider';
 import { isInjectable } from './injectable';
+import {
+  configSchema,
+  loadConfigValue,
+  type ConfigIssue,
+} from '../config/config';
 
 const NON_INJECTABLE = new Set<unknown>([
   String,
@@ -17,6 +22,11 @@ export class Container {
   private readonly instances = new Map<Ctor, unknown>();
   private readonly factories = new Map<Ctor, (c: Container) => unknown>();
   private readonly resolving = new Set<Ctor>();
+  readonly configIssues: ConfigIssue[] = [];
+
+  constructor(
+    private readonly env: Record<string, string | undefined> = process.env
+  ) {}
 
   register(provider: Provider): void {
     if (typeof provider === 'function') return; // plain class: resolvable on demand
@@ -34,6 +44,22 @@ export class Container {
     const factory = this.factories.get(target);
     if (factory) {
       const instance = factory(this);
+      this.instances.set(target, instance);
+      return instance as T;
+    }
+    // Config classes resolve to a value validated from the environment —
+    // injecting one is what registers it. Validation issues are collected
+    // (not thrown) so the boot pass can report every config class's problems
+    // in a single failure. Explicit providers above still take precedence,
+    // which is how tests substitute a config without touching the env.
+    const schema = configSchema(target);
+    if (schema) {
+      const instance = loadConfigValue(
+        target,
+        schema,
+        this.env,
+        this.configIssues
+      );
       this.instances.set(target, instance);
       return instance as T;
     }

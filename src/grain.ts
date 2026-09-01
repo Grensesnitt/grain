@@ -10,6 +10,7 @@ import type {
 } from './types';
 import type { Provider } from './di/provider';
 import { Container } from './di/container';
+import { ConfigError } from './config/config';
 import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
 import { readGatewayMeta } from './decorators/gateway';
 import { readClassGuardMeta, readControllerMeta } from './decorators/metadata';
@@ -30,6 +31,8 @@ export interface GrainOptions {
   cors?: CorsOptions;
   docs?: DocsOptions;
   gateways?: Ctor<WsGateway>[];
+  /** Source for Config-class validation; defaults to process.env. */
+  env?: Record<string, string | undefined>;
 }
 
 interface Compiled {
@@ -48,7 +51,7 @@ function notFound(): Response {
 }
 
 export class Grain {
-  private readonly container = new Container();
+  private readonly container: Container;
   private readonly onRequestHooks: OnRequestHook[] = [];
   private readonly onErrorHooks: OnErrorHook[] = [];
   private readonly onResponseHooks: OnResponseHook[] = [];
@@ -57,6 +60,7 @@ export class Grain {
   private server: Server<unknown> | null = null;
 
   constructor(private readonly options: GrainOptions) {
+    this.container = new Container(options.env);
     for (const p of options.providers ?? []) this.container.register(p);
     if (options.cors) {
       if (options.cors.origin === '*' && options.cors.credentials) {
@@ -213,6 +217,14 @@ export class Grain {
       for (const handlers of Object.values(routes)) {
         handlers['OPTIONS'] ??= preflight;
       }
+    }
+    // Every controller/guard/gateway (and through them, every service) has
+    // been resolved by now, so all demanded config classes have validated.
+    // Reported here as one aggregated failure — not per class at resolve
+    // time — so a boot with several broken configs fails exactly once with
+    // the complete list.
+    if (this.container.configIssues.length > 0) {
+      throw new ConfigError([...this.container.configIssues]);
     }
     const entries: MatcherEntry[] = Object.entries(routes).map(
       ([path, handlers]) => ({
