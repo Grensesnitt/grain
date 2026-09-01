@@ -11,6 +11,9 @@ import type {
 import type { Provider } from './di/provider';
 import { Container, WiringError } from './di/container';
 import { ConfigError } from './config/config';
+import { Logger } from './logging/logger';
+
+const REQUEST_START = '__grainRequestStart';
 import { corsResponseHook, preflightHandler, type CorsOptions } from './cors';
 import { readGatewayMeta } from './decorators/gateway';
 import { readClassGuardMeta, readControllerMeta } from './decorators/metadata';
@@ -33,6 +36,12 @@ export interface GrainOptions {
   gateways?: Ctor<WsGateway>[];
   /** Source for Config-class validation; defaults to process.env. */
   env?: Record<string, string | undefined>;
+  /**
+   * Structured logger. Always registered as a DI provider (a default
+   * Logger when omitted) and used for request logging with x-request-id
+   * correlation; pass one to control level/format/sink.
+   */
+  logger?: Logger;
 }
 
 interface Compiled {
@@ -59,9 +68,41 @@ export class Grain {
   private compiled: Compiled | null = null;
   private server: Server<unknown> | null = null;
 
+  private readonly logger: Logger;
+
   constructor(private readonly options: GrainOptions) {
     this.container = new Container(options.env);
+    this.logger = options.logger ?? new Logger();
+    // Registered before user providers so an explicit {provide: Logger} wins.
+    this.container.register({ provide: Logger, useValue: this.logger });
     for (const p of options.providers ?? []) this.container.register(p);
+    // Request logging + correlation id. Pushed first so ctx.store.requestId
+    // is set before any user onRequest hook runs.
+    this.onRequestHooks.push((ctx) => {
+      ctx.store.requestId =
+        ctx.req.headers.get('x-request-id') ?? crypto.randomUUID();
+      ctx.store[REQUEST_START] = performance.now();
+    });
+    this.onResponseHooks.push((res, ctx) => {
+      // Paths that skip onRequest hooks (404, docs, preflight) get an id here.
+      const requestId =
+        (ctx.store.requestId as string | undefined) ?? crypto.randomUUID();
+      res.headers.set('x-request-id', requestId);
+      const start = ctx.store[REQUEST_START] as number | undefined;
+      const durationMs =
+        start === undefined
+          ? undefined
+          : Math.round((performance.now() - start) * 1000) / 1000;
+      const level =
+        res.status >= 500 ? 'error' : res.status >= 400 ? 'warn' : 'info';
+      this.logger[level]('request', {
+        method: ctx.req.method,
+        path: new URL(ctx.req.url).pathname,
+        status: res.status,
+        durationMs,
+        requestId,
+      });
+    });
     if (options.cors) {
       if (options.cors.origin === '*' && options.cors.credentials) {
         throw new Error("cors: origin '*' cannot be combined with credentials");
@@ -297,7 +338,7 @@ export class Grain {
       routes,
       fetch: (req) => this.finalize(notFound(), req),
       ...(this.options.gateways?.length
-        ? { websocket: websocketHandler() }
+        ? { websocket: websocketHandler(this.logger) }
         : {}),
     } as Parameters<typeof Bun.serve>[0]) as Server<unknown>;
     return this.server;

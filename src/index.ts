@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import './validation/formats';
 import type { Ctx as CtxShape } from './types';
 
-export const GRAIN_VERSION = '0.8.0';
+export const GRAIN_VERSION = '0.9.0';
 
 export { Grain, type GrainOptions } from './grain';
 export type { CorsOptions } from './cors';
@@ -34,6 +34,12 @@ export {
   ValidationError,
 } from './errors/http-error';
 export { Dto } from './validation/dto';
+export {
+  Logger,
+  type LogFields,
+  type LogLevel,
+  type LoggerOptions,
+} from './logging/logger';
 export {
   Config,
   ConfigError,

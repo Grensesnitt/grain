@@ -2,6 +2,7 @@ import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { ValidationError } from '../errors/http-error';
 import type { Validator } from '../validation/compile';
 import type { Ctx, WsClient, WsGateway } from '../types';
+import type { Logger } from '../logging/logger';
 
 export interface WsData {
   ctx: Ctx;
@@ -19,14 +20,14 @@ function makeClient(ws: ServerWebSocket<WsData>): WsClient {
   };
 }
 
-export function websocketHandler(): WebSocketHandler<WsData> {
+export function websocketHandler(logger: Logger): WebSocketHandler<WsData> {
   return {
     async open(ws) {
       ws.data.client = makeClient(ws);
       try {
         await ws.data.gateway.open?.(ws.data.client);
       } catch (err) {
-        console.error('grain ws open error', err);
+        logger.error('ws open error', { error: err });
       }
     },
     async message(ws, raw) {
@@ -61,7 +62,7 @@ export function websocketHandler(): WebSocketHandler<WsData> {
       try {
         await ws.data.gateway.message?.(client, parsed);
       } catch (err) {
-        console.error('grain ws message error', err);
+        logger.error('ws message error', { error: err });
         client.send({
           statusCode: 500,
           error: 'Internal Server Error',
@@ -74,7 +75,7 @@ export function websocketHandler(): WebSocketHandler<WsData> {
       try {
         await ws.data.gateway.close?.(ws.data.client);
       } catch (err) {
-        console.error('grain ws close error', err);
+        logger.error('ws close error', { error: err });
       }
     },
   };
