@@ -2,6 +2,16 @@ import type { Server } from 'bun';
 
 export type Ctor<T = unknown> = new (...args: any[]) => T;
 
+// Lifecycle hooks are duck-typed at runtime (any instance with the method
+// participates) — these interfaces exist for declaration ergonomics.
+export interface OnModuleInit {
+  onModuleInit(): void | Promise<void>;
+}
+
+export interface OnModuleDestroy {
+  onModuleDestroy(): void | Promise<void>;
+}
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface CookieOptions {

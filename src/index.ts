@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import './validation/formats';
 import type { Ctx as CtxShape } from './types';
 
-export const GRAIN_VERSION = '0.10.0';
+export const GRAIN_VERSION = '0.11.0';
 
 export { Grain, type GrainOptions } from './grain';
 export type { CorsOptions } from './cors';
@@ -61,6 +61,8 @@ export type {
   Guard,
   HttpMethod,
   OnErrorHook,
+  OnModuleDestroy,
+  OnModuleInit,
   OnRequestHook,
   OnResponseHook,
   WsClient,

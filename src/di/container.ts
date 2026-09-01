@@ -55,6 +55,7 @@ export class Container {
   private readonly factories = new Map<Ctor, (c: Container) => unknown>();
   private readonly resolving = new Set<Ctor>();
   private readonly classLinks = new Map<Ctor, Ctor>();
+  private readonly registeredClasses: Ctor[] = [];
   private preflightDone = false;
   readonly configIssues: ConfigIssue[] = [];
   readonly wiringIssues: string[] = [];
@@ -64,7 +65,12 @@ export class Container {
   ) {}
 
   register(provider: Provider): void {
-    if (typeof provider === 'function') return; // plain class: resolvable on demand
+    if (typeof provider === 'function') {
+      // Plain classes are instantiated eagerly at init() so their lifecycle
+      // hooks run even when nothing injects them (e.g. background workers).
+      this.registeredClasses.push(provider);
+      return;
+    }
     if ('useValue' in provider) {
       this.instances.set(provider.provide, provider.useValue);
     } else if ('useClass' in provider) {
@@ -118,6 +124,17 @@ export class Container {
     };
     for (const root of roots) visit(root);
     this.preflightDone = true;
+  }
+
+  // Every provider token that init() must resolve eagerly.
+  eagerTokens(): Ctor[] {
+    return [...this.registeredClasses, ...this.factories.keys()];
+  }
+
+  // All distinct instances the container holds, in creation order
+  // (dependencies precede their dependents; useValue instances come first).
+  lifecycleInstances(): unknown[] {
+    return [...new Set(this.instances.values())];
   }
 
   resolve<T>(target: Ctor<T>): T {

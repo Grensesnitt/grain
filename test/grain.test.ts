@@ -171,14 +171,14 @@ test('duplicate routes throw at boot', () => {
     }
   }
   const app = new Grain({ controllers: [DupA, DupB] });
-  // listen() compiles synchronously and throws before Bun.serve is reached.
-  // (handle() is async — a sync toThrow would miss its rejected promise.)
-  expect(() => app.listen(0)).toThrow('Duplicate route: GET /dup/x');
+  // listen() is async since lifecycle hooks — the compile error arrives as a
+  // rejected promise.
+  expect(app.listen(0)).rejects.toThrow('Duplicate route: GET /dup/x');
 });
 
 test('handle() and a live Bun server give identical responses', async () => {
   const app = makeApp();
-  const server = app.listen(0);
+  const server = await app.listen(0);
   try {
     const inProcess = await app.handle(
       new Request('http://localhost/items/42')
@@ -209,7 +209,7 @@ test('overlapping param patterns: handle() matches live Bun.serve precedence', a
     }
   }
   const app = new Grain({ controllers: [OverlapController] });
-  const server = app.listen(0);
+  const server = await app.listen(0);
   try {
     for (const path of ['/overlap/x/c', '/overlap/q/c']) {
       const inProcessRes = await app.handle(
@@ -353,7 +353,7 @@ test('class-level @Public skips global guards but keeps class-level @UseGuard', 
 
 test('hostile paths: handle() and live Bun.serve agree on status', async () => {
   const app = makeApp();
-  const server = app.listen(0);
+  const server = await app.listen(0);
   try {
     const paths = [
       '/items/42/',
@@ -565,7 +565,7 @@ describe('cookies and server ctx', () => {
   });
 
   test('listen accepts {port, hostname}', async () => {
-    const srv = app().listen({ port: 0, hostname: '127.0.0.1' });
+    const srv = await app().listen({ port: 0, hostname: '127.0.0.1' });
     try {
       const res = await fetch(`http://127.0.0.1:${srv.port}/cookie/read`);
       expect(res.status).toBe(200);

@@ -67,6 +67,8 @@ export class Grain {
   private corsHook: OnResponseHook | null = null;
   private compiled: Compiled | null = null;
   private server: Server<unknown> | null = null;
+  private initPromise: Promise<void> | null = null;
+  private shutdownStarted = false;
 
   private readonly logger: Logger;
 
@@ -148,6 +150,7 @@ export class Grain {
       ...this.options.controllers,
       ...(this.options.guards ?? []),
       ...(this.options.gateways ?? []),
+      ...this.container.eagerTokens(),
     ]);
     if (this.container.wiringIssues.length > 0) {
       throw new WiringError([...this.container.wiringIssues]);
@@ -292,7 +295,62 @@ export class Grain {
     return this.compiled;
   }
 
+  // Compiles the app, instantiates every registered provider (so lifecycle
+  // hooks run for un-injected ones like background workers), then awaits each
+  // instance's onModuleInit in creation order — dependencies before
+  // dependents. Memoized; handle() and listen() call it implicitly.
+  init(): Promise<void> {
+    this.initPromise ??= this.runInit();
+    return this.initPromise;
+  }
+
+  private async runInit(): Promise<void> {
+    this.compile();
+    for (const token of this.container.eagerTokens()) {
+      this.container.resolve(token);
+    }
+    for (const instance of this.container.lifecycleInstances()) {
+      const hook = (instance as { onModuleInit?: () => unknown } | null)
+        ?.onModuleInit;
+      if (typeof hook === 'function') await hook.call(instance);
+    }
+  }
+
+  // Stops the server and awaits each instance's onModuleDestroy in reverse
+  // creation order (dependents before their dependencies). Hook errors are
+  // logged, not rethrown, so one failing hook cannot block the rest.
+  async shutdown(): Promise<void> {
+    if (this.shutdownStarted) return;
+    this.shutdownStarted = true;
+    this.stop();
+    for (const instance of this.container.lifecycleInstances().reverse()) {
+      const hook = (instance as { onModuleDestroy?: () => unknown } | null)
+        ?.onModuleDestroy;
+      if (typeof hook !== 'function') continue;
+      try {
+        await hook.call(instance);
+      } catch (err) {
+        this.logger.error('onModuleDestroy failed', { error: err });
+      }
+    }
+  }
+
+  // SIGTERM/SIGINT → shutdown() → exit 0. Call once after listen().
+  enableShutdownHooks(signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT']): this {
+    for (const signal of signals) {
+      process.on(signal, () => {
+        void (async () => {
+          this.logger.info('shutting down', { signal });
+          await this.shutdown();
+          process.exit(0);
+        })();
+      });
+    }
+    return this;
+  }
+
   async handle(req: Request): Promise<Response> {
+    await this.init();
     const { match } = this.compile();
     const matched = match(new URL(req.url).pathname);
     const handler = matched?.handlers[req.method as HttpMethod];
@@ -320,9 +378,10 @@ export class Grain {
     return this.applyResponseHooks(res, req, this.onResponseHooks);
   }
 
-  listen(
+  async listen(
     portOrOptions: number | { port?: number; hostname?: string } = 3000
-  ): Server<unknown> {
+  ): Promise<Server<unknown>> {
+    await this.init();
     const { routes } = this.compile();
     const options =
       typeof portOrOptions === 'number'

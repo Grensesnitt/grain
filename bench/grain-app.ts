@@ -8,4 +8,6 @@ class PingController {
   }
 }
 
-new Grain({ controllers: [PingController] }).listen(Number(process.env.PORT));
+await new Grain({ controllers: [PingController] }).listen(
+  Number(process.env.PORT)
+);

@@ -55,7 +55,7 @@ const app = new Grain({
   controllers: [],
   gateways: [EchoGateway, ThrowingGateway],
 });
-const server = app.listen({ port: 0, hostname: '127.0.0.1' });
+const server = await app.listen({ port: 0, hostname: '127.0.0.1' });
 afterAll(() => app.stop());
 
 function connect(
