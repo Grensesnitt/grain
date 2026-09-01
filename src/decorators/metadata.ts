@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { Type, type TSchema } from '@sinclair/typebox';
-import type { Ctor, Guard, HttpMethod } from '../types';
+import type { Ctor, Ctx, Guard, HttpMethod } from '../types';
 import { dtoSchema } from '../validation/dto';
 import { DOCS, type RouteDocs } from './docs';
 import { RETURNS, type ReturnsMeta } from './returns';
@@ -26,8 +26,9 @@ export interface RawRoute {
 
 export interface ParamMeta {
   index: number;
-  kind: 'body' | 'param' | 'query' | 'ctx';
+  kind: 'body' | 'param' | 'query' | 'ctx' | 'custom';
   name?: string;
+  factory?: (ctx: Ctx) => unknown;
 }
 
 export interface ResolvedRoute extends RawRoute {
@@ -64,7 +65,7 @@ export function deriveSchemas(
   const schemas: RouteSchemas = {};
 
   for (const meta of params) {
-    if (meta.kind === 'ctx') continue;
+    if (meta.kind === 'ctx' || meta.kind === 'custom') continue;
     if (paramTypes.length > 0 && paramTypes[meta.index] === undefined) {
       throw new Error(
         `Cannot derive validation for ${route.context}: parameter ${meta.index} ` +

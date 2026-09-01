@@ -13,6 +13,8 @@ export function buildExtractors(
     switch (meta.kind) {
       case 'ctx':
         return (ctx: Ctx) => ctx;
+      case 'custom':
+        return (ctx: Ctx) => meta.factory!(ctx);
       case 'body':
         return (ctx: Ctx) => ctx.body;
       case 'param':

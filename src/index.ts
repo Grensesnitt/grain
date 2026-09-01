@@ -2,13 +2,19 @@ import 'reflect-metadata';
 import './validation/formats';
 import type { Ctx as CtxShape } from './types';
 
-export const GRAIN_VERSION = '0.6.1';
+export const GRAIN_VERSION = '0.7.0';
 
 export { Grain, type GrainOptions } from './grain';
 export type { CorsOptions } from './cors';
 export { Controller } from './decorators/controller';
 export { Delete, Get, Patch, Post, Put } from './decorators/route';
-export { Body, Ctx, Param, Query } from './decorators/params';
+export {
+  Body,
+  Ctx,
+  Param,
+  Query,
+  createParamDecorator,
+} from './decorators/params';
 export { Docs } from './decorators/docs';
 export { Gateway } from './decorators/gateway';
 export { HttpCode } from './decorators/http-code';
